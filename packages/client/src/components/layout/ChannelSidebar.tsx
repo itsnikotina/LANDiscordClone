@@ -9,13 +9,14 @@ import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
 import Modal from '../ui/Modal';
 import AudioSettingsModal from '../ui/AudioSettingsModal';
+import SpeakingIndicator from '../voice/SpeakingIndicator';
 
 const ChannelSidebar: React.FC = () => {
   const { activeGuildId, guilds, activeChannelId, voiceStates, getMember, getChannel } = useGuildStore();
   const { user } = useAuthStore();
   const {
     channelId: voiceChannelId, guildId: voiceGuildId, leaveChannel,
-    isMuted, isDeafened, isStreaming, toggleMute, toggleDeafen, toggleStream
+    isMuted, isDeafened, isStreaming, isSelfSpeaking, peersArray, toggleMute, toggleDeafen, toggleStream
   } = useVoiceStore();
   const navigate = useNavigate();
   const [creatingInCategoryId, setCreatingInCategoryId] = useState<string | null>(null);
@@ -122,9 +123,14 @@ const ChannelSidebar: React.FC = () => {
                     {channel.type === 'VOICE' && voiceStates.filter(v => v.channelId === channel.id).map(vs => {
                       const member = getMember(vs.userId);
                       const displayName = member?.username ?? vs.username ?? `Usuário ${vs.userId}`;
+                      const speaking = vs.userId === user?.id
+                        ? isSelfSpeaking
+                        : (peersArray.find(p => p.userId === vs.userId)?.isSpeaking ?? false);
                       return (
                         <div key={vs.userId} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 8px 2px 32px', marginBottom: '2px' }}>
-                          <Avatar user={{ username: displayName, avatarColor: member?.avatarColor ?? '#5865F2' }} size={20} showStatus={false} />
+                          <SpeakingIndicator isSpeaking={speaking} size="sm">
+                            <Avatar user={{ username: displayName, avatarColor: member?.avatarColor ?? '#5865F2' }} size={20} showStatus={false} />
+                          </SpeakingIndicator>
                           <span style={{ flex: 1, fontSize: '13px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {displayName}
                           </span>
@@ -183,7 +189,9 @@ const ChannelSidebar: React.FC = () => {
       <div style={{ height: '52px', backgroundColor: 'var(--color-bg-accent)', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
         {user && (
           <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, padding: '4px', borderRadius: '4px', cursor: 'pointer' }}>
-            <Avatar user={user} size={32} />
+            <SpeakingIndicator isSpeaking={isSelfSpeaking} size="sm">
+              <Avatar user={user} size={32} />
+            </SpeakingIndicator>
             <div style={{ marginLeft: '8px', minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.username}</div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Online</div>
