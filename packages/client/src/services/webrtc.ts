@@ -92,12 +92,22 @@ class WebRTCManager {
       this.disconnectPeer(peer.userId);
     }
 
+    const localTracks = this.localStream?.getAudioTracks().map(t => t.label) ?? [];
+    console.log(`[webrtc] connectToPeer ${peer.userId} initiator=${isInitiator} sending mic:`, localTracks.length ? localTracks : 'NONE (no localStream! peer will not hear us)');
+
     const connection = new RTCPeerConnection(this.config);
     const audioEl = new Audio();
     audioEl.autoplay = true;
     if (this.outputDeviceId) {
       (audioEl as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }).setSinkId?.(this.outputDeviceId).catch(() => {});
     }
+
+    connection.onconnectionstatechange = () => {
+      console.log(`[webrtc] peer ${peer.userId} connection: ${connection.connectionState}`);
+    };
+    connection.oniceconnectionstatechange = () => {
+      console.log(`[webrtc] peer ${peer.userId} ice: ${connection.iceConnectionState}`);
+    };
 
     connection.onicecandidate = (event) => {
       if (event.candidate) {
@@ -110,6 +120,10 @@ class WebRTCManager {
     };
 
     connection.ontrack = (event) => {
+      console.log(`[webrtc] peer ${peer.userId} ontrack: kind=${event.track.kind} muted=${event.track.muted}`);
+      // 'mute' on a remote track = no RTP packets arriving for it (sender side is not transmitting).
+      event.track.onmute = () => console.warn(`[webrtc] peer ${peer.userId} ${event.track.kind} track went SILENT (no packets arriving)`);
+      event.track.onunmute = () => console.log(`[webrtc] peer ${peer.userId} ${event.track.kind} track receiving packets`);
       if (!audioEl.srcObject) {
         audioEl.srcObject = event.streams[0];
         audioEl.play().catch(err => console.warn('[webrtc] Autoplay blocked for incoming audio, retrying on next user gesture:', err));
@@ -149,6 +163,7 @@ class WebRTCManager {
 
   async handleSignal(fromUserId: number, type: string, data: any): Promise<void> {
     let peer = this.peers.get(fromUserId);
+    console.log(`[webrtc] signal from ${fromUserId}: ${type}${peer ? '' : ' (no peer yet)'}`);
     
     if (type === 'offer') {
       if (!peer) {
@@ -234,6 +249,7 @@ class WebRTCManager {
   }
 
   setMuted(muted: boolean): void {
+    console.log(`[webrtc] mic ${muted ? 'MUTED' : 'unmuted'}`);
     if (this.localStream) {
       this.localStream.getAudioTracks().forEach(track => {
         track.enabled = !muted;
