@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import path from 'path';
 dotenv.config();
 
 /**
@@ -32,13 +33,16 @@ export const config = {
 
   /**
    * The path to the SQLite database file.
+   * Anchored to this package's own directory (not process.cwd()) so the same
+   * database is always found regardless of how/where the server is launched.
    */
-  dbPath: process.env.DB_PATH || './data/discord-p2p.db',
+  dbPath: path.resolve(__dirname, '..', process.env.DB_PATH || './data/discord-p2p.db'),
 
   /**
    * The directory where uploaded files are stored.
+   * Also anchored to this package's directory - see dbPath comment above.
    */
-  uploadsDir: process.env.UPLOADS_DIR || './uploads',
+  uploadsDir: path.resolve(__dirname, '..', process.env.UPLOADS_DIR || './uploads'),
 
   /**
    * The maximum allowed file size for uploads in bytes.

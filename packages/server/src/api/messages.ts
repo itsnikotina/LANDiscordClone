@@ -30,8 +30,8 @@ function serializeMessage(row: MessageRow) {
     authorId: row.author_id,
     author: {
       id: row.author_id,
-      username: row.author_username,
-      avatarColor: row.author_avatar_color,
+      username: row.author_username || 'Usuário Desconhecido',
+      avatarColor: row.author_avatar_color || '#5865F2',
     },
     content: row.content,
     attachments: JSON.parse(row.attachments || '[]'),
