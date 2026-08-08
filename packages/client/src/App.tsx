@@ -1,12 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import GuildPage from './pages/GuildPage';
+import ServerSetupPage from './pages/ServerSetupPage';
 import { useAuthStore } from './store/authStore';
 import { useGuildStore } from './store/guildStore';
 import { useVoiceStore } from './store/voiceStore';
 import { gateway, GatewayOpcode } from './services/gateway';
 import { webrtcManager } from './services/webrtc';
+import { getEffectiveServerConfig } from './services/serverConfig';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore();
@@ -16,14 +18,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const App: React.FC = () => {
   const { isAuthenticated, token, user } = useAuthStore();
+  const [isServerConfigured, setIsServerConfigured] = useState(!!getEffectiveServerConfig());
 
   useEffect(() => {
     if (isAuthenticated && token) {
-      // Falls back to localhost (not a guessed VPN IP) so misconfiguration fails loudly instead of silently.
-      if (!import.meta.env.VITE_WS_URL) {
-        console.warn("[gateway] VITE_WS_URL not set, defaulting to ws://localhost:3002 - set it in .env to the host's IP");
-      }
-      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3002';
+      const wsUrl = getEffectiveServerConfig()?.wsUrl ?? 'ws://localhost:3002';
       gateway.connect(wsUrl, token);
 
       const handleReady = (data: any) => {
@@ -120,18 +119,22 @@ const App: React.FC = () => {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/channels/@me" replace />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route 
-          path="/channels/:guildId/:channelId?" 
-          element={
-            <ProtectedRoute>
-              <GuildPage />
-            </ProtectedRoute>
-          } 
-        />
-      </Routes>
+      {!isServerConfigured ? (
+        <ServerSetupPage onConfigured={() => setIsServerConfigured(true)} />
+      ) : (
+        <Routes>
+          <Route path="/" element={<Navigate to="/channels/@me" replace />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/channels/:guildId/:channelId?"
+            element={
+              <ProtectedRoute>
+                <GuildPage />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      )}
     </BrowserRouter>
   );
 };

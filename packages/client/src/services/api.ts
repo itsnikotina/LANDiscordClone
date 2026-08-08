@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getEffectiveServerConfig } from './serverConfig';
 
 export interface User { id: number; username: string; avatarColor: string; status: 'online'|'idle'|'dnd'|'invisible'; radminIp?: string; }
 export interface Guild { id: string; name: string; iconColor: string; ownerId: number; inviteCode: string; categories: Category[]; channels: Channel[]; roles: Role[]; members: Member[]; }
@@ -13,18 +14,16 @@ export interface UploadedAttachment { url: string; filename: string; mimetype: s
 /** Must match packages/server/src/config.ts maxFileSize. */
 export const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
 
-// Falls back to localhost (not a guessed VPN IP) so misconfiguration fails loudly instead of silently.
-if (!import.meta.env?.VITE_API_URL) {
-  console.warn('[api] VITE_API_URL not set, defaulting to http://localhost:3001 - set it in .env to the host\'s IP');
+export const apiClient = axios.create();
+
+/** Applies a (possibly just-saved) server address without needing a page reload. */
+export function applyServerConfig(): void {
+  apiClient.defaults.baseURL = getEffectiveServerConfig()?.apiUrl;
 }
-const baseURL = import.meta.env?.VITE_API_URL || 'http://localhost:3001';
+applyServerConfig();
 
 /** Attachment URLs are stored relative (e.g. /uploads/x.png) - resolve them against the API server, not the Vite dev server. */
-export const resolveAttachmentUrl = (url: string) => url.startsWith('http') ? url : `${baseURL}${url}`;
-
-export const apiClient = axios.create({
-  baseURL,
-});
+export const resolveAttachmentUrl = (url: string) => url.startsWith('http') ? url : `${apiClient.defaults.baseURL ?? ''}${url}`;
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('discord_p2p_token');

@@ -49,6 +49,11 @@ Ou iniciar tudo junto:
 npm run dev
 ```
 
+**Amigos não precisam editar nenhum arquivo.** Na primeira vez que o cliente abre, ele
+pede o IP do host numa telinha e salva isso localmente (sem precisar de `.env`, sem
+rebuild). Pra trocar o servidor depois, tem um link "Trocar servidor" na tela de
+login.
+
 **Windows:** use `server.bat` / `client.bat`.
 **Linux/Mac:** use `./server.sh` / `./client.sh` (rode `chmod +x server.sh client.sh` uma vez antes).
 
@@ -89,7 +94,10 @@ DB_PATH=./data/discord-p2p.db
 UPLOADS_DIR=./uploads
 ```
 
-### Client (`packages/client/.env`)
+### Client (`packages/client/.env`) — opcional
+O cliente pergunta o IP do servidor na primeira tela e salva localmente
+(`localStorage`), então isso normalmente não é necessário. Só use `.env` se
+quiser pular a telinha de configuração (ex: build fixo pra sua própria máquina host):
 ```env
 VITE_API_URL=http://<ip-do-host>:3001   # IP do host na rede compartilhada (Radmin/Tailscale/ZeroTier/LAN)
 VITE_WS_URL=ws://<ip-do-host>:3002

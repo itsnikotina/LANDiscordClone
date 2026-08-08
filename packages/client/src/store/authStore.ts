@@ -31,7 +31,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('discord_p2p_token', data.token);
       set({ user: data.user, token: data.token, isAuthenticated: true, isLoading: false });
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Login failed', isLoading: false });
+      const message = err.response
+        ? (err.response.data?.error || 'Login failed')
+        : 'Não foi possível conectar ao servidor. Verifique se ele está rodando, ou clique em "Trocar servidor" se o IP estiver errado.';
+      set({ error: message, isLoading: false });
       throw err;
     }
   },
@@ -43,7 +46,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('discord_p2p_token', data.token);
       set({ user: data.user, token: data.token, isAuthenticated: true, isLoading: false });
     } catch (err: any) {
-      set({ error: err.response?.data?.message || 'Registration failed', isLoading: false });
+      const message = err.response
+        ? (err.response.data?.error || 'Registration failed')
+        : 'Não foi possível conectar ao servidor. Verifique se ele está rodando, ou clique em "Trocar servidor" se o IP estiver errado.';
+      set({ error: message, isLoading: false });
       throw err;
     }
   },

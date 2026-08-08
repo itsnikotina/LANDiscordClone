@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { clearServerConfig } from '../services/serverConfig';
 
 const LoginPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -27,7 +28,8 @@ const LoginPage: React.FC = () => {
       }
       navigate('/channels/@me');
     } catch (err: any) {
-      setError(err.message || 'Erro de autenticação');
+      // authStore already derives a specific message (server error, or "can't reach the server").
+      setError(useAuthStore.getState().error || err.message || 'Erro de autenticação');
     } finally {
       setLoading(false);
     }
@@ -143,6 +145,13 @@ const LoginPage: React.FC = () => {
 
           {error && <div style={{ color: '#ed4245', fontSize: '14px', textAlign: 'center' }}>{error}</div>}
         </form>
+
+        <button
+          onClick={() => { clearServerConfig(); window.location.reload(); }}
+          style={{ background: 'none', border: 'none', color: '#b5bac1', fontSize: '12px', cursor: 'pointer', display: 'block', margin: '16px auto 0', textDecoration: 'underline' }}
+        >
+          Trocar servidor
+        </button>
       </div>
     </div>
   );

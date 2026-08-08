@@ -164,31 +164,51 @@ router.get('/:guildId', (req: Request, res: Response): void => {
 });
 
 /**
- * POST /guilds/:guildId/join
- * Join a guild by invite code in body.
+ * POST /guilds/join
+ * Join a guild by invite code (no need to already know the guild's id).
  */
-router.post('/:guildId/join', (req: Request, res: Response): void => {
+router.post('/join', (req: Request, res: Response): void => {
   try {
     const userId = req.user!.userId;
-    const { guildId } = req.params;
-    const { invite_code } = req.body;
-    
-    const guild = queryOne('SELECT id FROM guilds WHERE id = ? AND invite_code = ?', [guildId, invite_code]);
-    if (!guild) {
-      res.status(404).json({ error: 'Invalid invite code or guild' });
+    const { inviteCode } = req.body;
+
+    if (!inviteCode) {
+      res.status(400).json({ error: 'inviteCode is required' });
       return;
     }
 
-    try {
-      runWrite('INSERT INTO guild_members (guild_id, user_id) VALUES (?, ?)', [guildId, userId]);
-      res.json({ message: 'Joined successfully', guildId });
-    } catch (e: any) {
-      if (e.message && e.message.includes('UNIQUE constraint failed')) {
-        res.status(409).json({ error: 'Already a member' });
-      } else {
-        throw e;
-      }
+    const guild = queryOne<{ id: string }>('SELECT id FROM guilds WHERE invite_code = ?', [inviteCode]);
+    if (!guild) {
+      res.status(404).json({ error: 'Invalid invite code' });
+      return;
     }
+
+    const existing = queryOne('SELECT 1 FROM guild_members WHERE guild_id = ? AND user_id = ?', [guild.id, userId]);
+    if (!existing) {
+      runWrite('INSERT INTO guild_members (guild_id, user_id) VALUES (?, ?)', [guild.id, userId]);
+    }
+
+    const newGuild = queryOne('SELECT * FROM guilds WHERE id = ?', [guild.id]);
+    const categories = queryAll('SELECT * FROM categories WHERE guild_id = ? ORDER BY position', [guild.id]);
+    const channels = queryAll<{ category_id: string | null }>('SELECT * FROM channels WHERE guild_id = ? ORDER BY position', [guild.id]);
+    const roles = queryAll('SELECT * FROM roles WHERE guild_id = ? ORDER BY position DESC', [guild.id]);
+    const members = queryAll(`
+      SELECT m.user_id as userId, u.username, u.avatar_color as avatarColor, u.status
+      FROM guild_members m JOIN users u ON m.user_id = u.id WHERE m.guild_id = ?
+    `, [guild.id]);
+
+    const formattedCategories = categories.map(c => ({
+      ...c,
+      channels: channels.filter(ch => ch.category_id === (c as { id: string }).id)
+    }));
+
+    res.status(200).json({
+      ...newGuild,
+      categories: formattedCategories,
+      channels: channels.filter(ch => !ch.category_id),
+      roles,
+      members
+    });
   } catch (error) {
     console.error('Error joining guild:', error);
     res.status(500).json({ error: 'Internal server error' });

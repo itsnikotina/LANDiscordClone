@@ -20,8 +20,17 @@ const ChannelSidebar: React.FC = () => {
   const [creatingInCategoryId, setCreatingInCategoryId] = useState<string | null>(null);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'TEXT' | 'VOICE'>('TEXT');
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   const guild = guilds.find(g => g.id === activeGuildId);
+
+  const copyInviteCode = () => {
+    if (!guild) return;
+    navigator.clipboard.writeText(guild.inviteCode);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2000);
+  };
 
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,8 +57,11 @@ const ChannelSidebar: React.FC = () => {
           <div style={{
             height: '48px', padding: '0 16px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--color-bg-tertiary)',
             backgroundColor: '#27292c', cursor: 'pointer', fontWeight: 600
-          }}>
+          }}
+          onClick={() => setShowInviteModal(true)}
+          >
             <div style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{guild.name}</div>
+            <Icon icon="solar:user-plus-bold" width={16} color="var(--color-text-muted)" />
           </div>
           
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
@@ -208,6 +220,29 @@ const ChannelSidebar: React.FC = () => {
           </button>
         </form>
       </Modal>
+
+      {guild && (
+        <Modal isOpen={showInviteModal} onClose={() => setShowInviteModal(false)} title={`Convidar para ${guild.name}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '14px', margin: 0 }}>
+              Envie este código para seus amigos. Eles usam "Entrar com Convite" na barra de servidores.
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                readOnly
+                value={guild.inviteCode}
+                style={{ flex: 1, padding: '10px', background: '#1e1f22', border: 'none', borderRadius: '4px', color: '#fff', outline: 'none', fontFamily: 'var(--font-mono)' }}
+              />
+              <button
+                onClick={copyInviteCode}
+                style={{ padding: '10px 16px', backgroundColor: 'var(--color-brand)', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                {inviteCopied ? 'Copiado!' : 'Copiar'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

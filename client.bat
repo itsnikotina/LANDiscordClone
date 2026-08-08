@@ -1,1 +1,1 @@
-cd "packages/client" && npm run dev
+cd "packages/client" && npm run electron:dev
