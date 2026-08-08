@@ -29,6 +29,13 @@ class WebRTCManager {
     iceTransportPolicy: 'all'
   };
 
+  constructor() {
+    // Autoplay can be silently blocked until a user gesture - any click retries stalled audio.
+    document.addEventListener('pointerdown', () => {
+      for (const userId of this.peers.keys()) this.ensurePlaying(userId);
+    });
+  }
+
   /** Applies (or remembers, for future peers) the speaker/output device audio plays through. */
   async setOutputDevice(deviceId: string): Promise<void> {
     this.outputDeviceId = deviceId;
@@ -129,16 +136,21 @@ class WebRTCManager {
       console.log(`[webrtc] peer ${peer.userId} ontrack: kind=${event.track.kind} muted=${event.track.muted}`);
       // 'mute' on a remote track = no RTP packets arriving for it (sender side is not transmitting).
       event.track.onmute = () => console.warn(`[webrtc] peer ${peer.userId} ${event.track.kind} track went SILENT (no packets arriving)`);
-      event.track.onunmute = () => console.log(`[webrtc] peer ${peer.userId} ${event.track.kind} track receiving packets`);
-      if (!audioEl.srcObject) {
-        audioEl.srcObject = event.streams[0];
-        audioEl.play().catch(err => console.warn('[webrtc] Autoplay blocked for incoming audio, retrying on next user gesture:', err));
+      event.track.onunmute = () => {
+        console.log(`[webrtc] peer ${peer.userId} ${event.track.kind} track receiving packets`);
+        this.ensurePlaying(peer.userId);
+      };
+      const stream = event.streams[0];
+      // Always (re)attach: after a rejoin/renegotiation the element may hold a dead stream.
+      if (stream && audioEl.srcObject !== stream) {
+        audioEl.srcObject = stream;
         const p = this.peers.get(peer.userId);
         if (p) {
-          p.stream = event.streams[0];
-          this.monitorAudioLevel(peer.userId, event.streams[0]);
+          p.stream = stream;
+          this.monitorAudioLevel(peer.userId, stream);
         }
       }
+      this.ensurePlaying(peer.userId);
     };
 
     if (this.localStream) {
@@ -208,6 +220,23 @@ class WebRTCManager {
         console.error('Error adding ICE candidate', e);
       }
     }
+  }
+
+  /**
+   * play() can fail transiently (autoplay policy, device switch, dead stream after rejoin).
+   * Retries every 2s until it sticks or the peer is gone - a stalled element here is exactly
+   * the "I only hear him after leaving and rejoining" bug.
+   */
+  private ensurePlaying(userId: number): void {
+    const peer = this.peers.get(userId);
+    if (!peer || !peer.audioEl.srcObject || !peer.audioEl.paused) return;
+    peer.audioEl.play().then(
+      () => console.log(`[webrtc] peer ${userId} audio element playing`),
+      (err) => {
+        console.warn(`[webrtc] peer ${userId} audio play blocked (${err?.name ?? err}), retrying in 2s`);
+        setTimeout(() => this.ensurePlaying(userId), 2000);
+      }
+    );
   }
 
   /**
