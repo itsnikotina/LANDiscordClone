@@ -23,12 +23,16 @@ interface VoiceStore {
   peersArray: VoicePeer[];
   localStream: MediaStream | null;
   screenStream: MediaStream | null;
+  inputDeviceId: string | null;
+  outputDeviceId: string | null;
   
   joinChannel: (channelId: string, guildId: string) => Promise<void>;
   leaveChannel: () => void;
   toggleMute: () => void;
   toggleDeafen: () => void;
   toggleStream: () => Promise<void>;
+  setInputDevice: (deviceId: string) => Promise<void>;
+  setOutputDevice: (deviceId: string) => Promise<void>;
   addPeer: (peer: VoicePeer) => void;
   removePeer: (userId: number) => void;
   updatePeer: (userId: number, updates: Partial<VoicePeer>) => void;
@@ -46,6 +50,8 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   peersArray: [],
   localStream: null,
   screenStream: null,
+  inputDeviceId: localStorage.getItem('discord_p2p_input_device'),
+  outputDeviceId: localStorage.getItem('discord_p2p_output_device'),
   
   joinChannel: async (channelId: string, guildId: string) => {
     if (get().channelId === channelId) return;
@@ -54,7 +60,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     }
     set({ joinError: null });
     try {
-      const stream = await webrtcManager.initLocalAudio();
+      const stream = await webrtcManager.initLocalAudio(get().inputDeviceId ?? undefined);
       set({ channelId, guildId, localStream: stream });
       
       gateway.send(GatewayOpcode.JOIN_VOICE, {
@@ -126,6 +132,19 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
         console.error('Failed to start stream', err);
       }
     }
+  },
+
+  setInputDevice: async (deviceId: string) => {
+    localStorage.setItem('discord_p2p_input_device', deviceId);
+    set({ inputDeviceId: deviceId });
+    // Takes effect next time a voice channel is joined (swapping mid-call would need
+    // RTCRtpSender.replaceTrack() on every peer connection - not implemented yet).
+  },
+
+  setOutputDevice: async (deviceId: string) => {
+    localStorage.setItem('discord_p2p_output_device', deviceId);
+    set({ outputDeviceId: deviceId });
+    await webrtcManager.setOutputDevice(deviceId);
   },
   
   addPeer: (peer: VoicePeer) => set((state) => {

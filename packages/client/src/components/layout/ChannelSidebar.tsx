@@ -8,6 +8,7 @@ import { channels as channelsApi } from '../../services/api';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
 import Modal from '../ui/Modal';
+import AudioSettingsModal from '../ui/AudioSettingsModal';
 
 const ChannelSidebar: React.FC = () => {
   const { activeGuildId, guilds, activeChannelId, voiceStates, getMember, getChannel } = useGuildStore();
@@ -22,8 +23,18 @@ const ChannelSidebar: React.FC = () => {
   const [newChannelType, setNewChannelType] = useState<'TEXT' | 'VOICE'>('TEXT');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   const guild = guilds.find(g => g.id === activeGuildId);
+
+  const toggleCategory = (categoryId: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) next.delete(categoryId); else next.add(categoryId);
+      return next;
+    });
+  };
 
   const copyInviteCode = () => {
     if (!guild) return;
@@ -65,23 +76,32 @@ const ChannelSidebar: React.FC = () => {
           </div>
           
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-            {guild.categories?.map(category => (
+            {guild.categories?.map(category => {
+              const isCollapsed = collapsedCategories.has(category.id);
+              return (
               <div key={category.id} style={{ marginBottom: '16px' }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)',
-                  textTransform: 'uppercase', padding: '4px 8px', cursor: 'pointer'
-                }}>
-                  <Icon icon="solar:alt-arrow-down-bold" width={12} style={{ marginRight: '4px' }} />
+                <div
+                  onClick={() => toggleCategory(category.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)',
+                    textTransform: 'uppercase', padding: '4px 8px', cursor: 'pointer'
+                  }}
+                >
+                  <Icon
+                    icon="solar:alt-arrow-down-bold"
+                    width={12}
+                    style={{ marginRight: '4px', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }}
+                  />
                   {category.name}
                   <button
-                    onClick={() => setCreatingInCategoryId(category.id)}
+                    onClick={(e) => { e.stopPropagation(); setCreatingInCategoryId(category.id); }}
                     title="Criar canal"
                     style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex' }}
                   >
                     <Icon icon="solar:add-circle-bold" width={16} />
                   </button>
                 </div>
-                {category.channels?.map(channel => (
+                {!isCollapsed && category.channels?.map(channel => (
                   <React.Fragment key={channel.id}>
                     <div
                       onClick={() => navigate(`/channels/${guild.id}/${channel.id}`)}
@@ -108,6 +128,7 @@ const ChannelSidebar: React.FC = () => {
                           <span style={{ flex: 1, fontSize: '13px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {displayName}
                           </span>
+                          {vs.muted && <Icon icon="mdi:microphone-off" color="var(--color-danger)" width={14} />}
                           {vs.streaming && <Badge color="#ed4245">AO VIVO</Badge>}
                         </div>
                       );
@@ -115,7 +136,8 @@ const ChannelSidebar: React.FC = () => {
                   </React.Fragment>
                 ))}
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       ) : (
@@ -175,6 +197,12 @@ const ChannelSidebar: React.FC = () => {
           <button onClick={toggleDeafen} style={{ background: 'none', border: 'none', color: isDeafened ? 'var(--color-danger)' : 'var(--color-text-muted)', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex' }}>
             <Icon icon={isDeafened ? 'mdi:headset-off' : 'solar:headphones-round-sound-bold'} width={18} />
           </button>
+          <button
+            onClick={() => setShowAudioSettings(true)}
+            title="Configurações de áudio"
+            style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex' }}>
+            <Icon icon="solar:settings-bold" width={18} />
+          </button>
           <button 
             onClick={() => {
               useAuthStore.getState().logout();
@@ -186,6 +214,8 @@ const ChannelSidebar: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <AudioSettingsModal isOpen={showAudioSettings} onClose={() => setShowAudioSettings(false)} />
 
       <Modal isOpen={!!creatingInCategoryId} onClose={() => setCreatingInCategoryId(null)} title="Criar Canal">
         <form onSubmit={handleCreateChannel} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

@@ -302,6 +302,22 @@ function handleAuthenticatedMessage(wsId: string, op: number, d: any): void {
         presence.activity = d.activity;
         presenceMgr.broadcastPresenceUpdate(wsId, presence, clients);
       }
+
+      // Mute/deafen/streaming toggles are also sent through this opcode - persist + broadcast to the voice channel.
+      if (d.muted !== undefined || d.deafened !== undefined || d.streaming !== undefined) {
+        const vs = queryOne<{ channel_id: string; guild_id: string }>(
+          'SELECT channel_id, guild_id FROM voice_states WHERE user_id = ?',
+          [client.userId]
+        );
+        if (vs) {
+          runWrite(
+            'UPDATE voice_states SET muted = ?, deafened = ?, streaming = ? WHERE user_id = ?',
+            [d.muted ? 1 : 0, d.deafened ? 1 : 0, d.streaming ? 1 : 0, client.userId]
+          );
+          const updated = queryOne('SELECT * FROM voice_states WHERE user_id = ?', [client.userId]);
+          broadcastToGuildMembers(vs.guild_id, { op: OP_VOICE_STATE_UPDATE, d: updated });
+        }
+      }
       break;
     }
 

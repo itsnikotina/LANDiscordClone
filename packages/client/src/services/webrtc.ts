@@ -16,11 +16,27 @@ class WebRTCManager {
   private screenStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private speakingCallbacks: Array<(userId: number, speaking: boolean) => void> = [];
+  private outputDeviceId: string | null = null;
   
   private readonly config: RTCConfiguration = {
     iceServers: [],
     iceTransportPolicy: 'all'
   };
+
+  /** Applies (or remembers, for future peers) the speaker/output device audio plays through. */
+  async setOutputDevice(deviceId: string): Promise<void> {
+    this.outputDeviceId = deviceId;
+    for (const peer of this.peers.values()) {
+      const el = peer.audioEl as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+      if (el.setSinkId) {
+        try {
+          await el.setSinkId(deviceId);
+        } catch (e) {
+          console.error('Failed to set audio output device', e);
+        }
+      }
+    }
+  }
 
   async initLocalAudio(deviceId?: string): Promise<MediaStream> {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -39,6 +55,9 @@ class WebRTCManager {
     const connection = new RTCPeerConnection(this.config);
     const audioEl = new Audio();
     audioEl.autoplay = true;
+    if (this.outputDeviceId) {
+      (audioEl as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }).setSinkId?.(this.outputDeviceId).catch(() => {});
+    }
 
     connection.onicecandidate = (event) => {
       if (event.candidate) {

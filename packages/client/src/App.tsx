@@ -43,6 +43,11 @@ const App: React.FC = () => {
 
       const handleVoiceStateUpdate = (data: any) => {
         useGuildStore.getState().updateVoiceState(data);
+        useVoiceStore.getState().updatePeer(data.userId, {
+          isMuted: !!data.muted,
+          isDeafened: !!data.deafened,
+          isStreaming: !!data.streaming,
+        });
       };
 
       const handleVoiceLeft = (data: any) => {

@@ -118,10 +118,10 @@ class GatewayService {
       }
 
       if (op === GatewayOpcode.HELLO) {
-        this.startHeartbeat(d.heartbeat_interval);
+        this.startHeartbeat(d.heartbeatInterval);
         this.send(GatewayOpcode.IDENTIFY, { token: this.currentToken });
       } else if (op === GatewayOpcode.READY) {
-        this.sessionId = d.session_id;
+        this.sessionId = d.sessionId;
       }
 
       const h = this.handlers.get(op);

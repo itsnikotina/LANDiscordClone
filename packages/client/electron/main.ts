@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, shell, session, desktopCapturer } from 'electron';
 import * as os from 'os';
 import * as path from 'path';
 import * as dgram from 'dgram';
@@ -110,6 +110,13 @@ if (!gotTheLock) {
     ipcMain.handle('get-network-ips', () => getNetworkIps());
     ipcMain.handle('get-discovered-servers', () => getDiscoveredServers());
     startDiscoveryListener();
+
+    // Electron doesn't show Chrome's screen-picker UI by default - getDisplayMedia() hangs/rejects without this.
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+      desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+        callback({ video: sources[0], audio: 'loopback' });
+      });
+    });
 
     const menu = Menu.buildFromTemplate([
       {
