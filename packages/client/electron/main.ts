@@ -1,0 +1,101 @@
+import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import * as os from 'os';
+import * as path from 'path';
+
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+/** Every non-internal IPv4 address this machine has, from any adapter (VPN or physical LAN). */
+function getNetworkIps(): { name: string; address: string }[] {
+  const interfaces = os.networkInterfaces();
+  const result: { name: string; address: string }[] = [];
+
+  for (const name of Object.keys(interfaces)) {
+    const iface = interfaces[name];
+    if (!iface) continue;
+    for (const alias of iface) {
+      if (alias.family === 'IPv4' && !alias.internal) {
+        result.push({ name, address: alias.address });
+      }
+    }
+  }
+  return result;
+}
+
+
+let mainWindow: BrowserWindow | null = null;
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  function createWindow() {
+    mainWindow = new BrowserWindow({
+      width: 1280,
+      height: 800,
+      minWidth: 940,
+      minHeight: 500,
+      backgroundColor: '#1e1f22',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      }
+    });
+
+    if (isDev) {
+      mainWindow.loadURL('http://localhost:5173');
+    } else {
+      mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    }
+
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+      if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    });
+  }
+
+  app.whenReady().then(() => {
+    ipcMain.handle('get-network-ips', () => getNetworkIps());
+
+    const menu = Menu.buildFromTemplate([
+      {
+        label: 'File',
+        submenu: [{ role: 'quit' }]
+      },
+      {
+        label: 'Help',
+        submenu: [
+          {
+            label: 'About',
+            click: () => {}
+          }
+        ]
+      }
+    ]);
+    Menu.setApplicationMenu(menu);
+
+    createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+}

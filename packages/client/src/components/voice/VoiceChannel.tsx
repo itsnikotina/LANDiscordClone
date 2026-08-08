@@ -1,0 +1,155 @@
+import React, { useEffect } from 'react';
+import { Icon } from '@iconify/react';
+import { useVoiceStore } from '../../store/voiceStore';
+import { useAuthStore } from '../../store/authStore';
+import Avatar from '../ui/Avatar';
+import SpeakingIndicator from './SpeakingIndicator';
+import VoiceControls from './VoiceControls';
+
+interface Channel {
+  id: string;
+  name: string;
+}
+
+/** Gives each call tile a distinct moody gradient based on the user's avatar color, like Discord's call tiles. */
+const tileBackground = (color: string) => `linear-gradient(160deg, ${color}99, #1e1f22)`;
+
+const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel, guildId }) => {
+  const { peersArray, channelId, joinChannel, joinError, isMuted, screenStream } = useVoiceStore();
+  const { user } = useAuthStore();
+  const isInVoice = channelId === channel.id;
+
+  // Join automatically on entering the channel's view instead of requiring an extra click.
+  useEffect(() => {
+    if (channelId !== channel.id) {
+      joinChannel(channel.id, guildId);
+    }
+  }, [channel.id, guildId]);
+
+  if (!isInVoice) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+        <h2 style={{ marginBottom: '16px' }}>{channel.name}</h2>
+        {joinError ? (
+          <>
+            <div style={{ color: 'var(--color-danger)', marginBottom: '16px', textAlign: 'center', maxWidth: '320px' }}>{joinError}</div>
+            <button
+              onClick={() => joinChannel(channel.id, guildId)}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: 'var(--color-success)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: '16px'
+              }}
+            >
+              Tentar novamente
+            </button>
+          </>
+        ) : (
+          <div style={{ color: 'var(--color-text-muted)' }}>Conectando...</div>
+        )}
+      </div>
+    );
+  }
+
+  const totalParticipants = 1 + peersArray.length;
+  const gridCols = Math.ceil(Math.sqrt(totalParticipants));
+  const gridRows = Math.ceil(totalParticipants / gridCols);
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{
+        flex: 1,
+        padding: '16px',
+        display: 'grid',
+        gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+        gridTemplateRows: `repeat(${gridRows}, 1fr)`,
+        gap: '8px',
+        overflow: 'hidden'
+      }}>
+        {user && (
+          <div style={{
+            background: tileBackground(user.avatarColor),
+            borderRadius: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {screenStream ? (
+              <video
+                autoPlay
+                playsInline
+                muted
+                ref={el => { if (el) el.srcObject = screenStream }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }}
+              />
+            ) : (
+              <Avatar user={user} size={80} showStatus={false} />
+            )}
+            <div style={{
+              position: 'absolute', bottom: '8px', left: '8px',
+              backgroundColor: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px',
+              fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px'
+            }}>
+              {user.username}
+              {isMuted && <Icon icon="mdi:microphone-off" color="var(--color-danger)" width={14} />}
+            </div>
+          </div>
+        )}
+
+        {peersArray.map(peer => (
+            <div key={peer.userId} style={{
+              background: tileBackground(peer.avatarColor),
+              borderRadius: '8px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {peer.stream ? (
+                <video 
+                  autoPlay 
+                  playsInline 
+                  muted={false}
+                  ref={el => { if (el) el.srcObject = peer.stream! }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }}
+                />
+              ) : (
+                <SpeakingIndicator isSpeaking={peer.isSpeaking} size="lg">
+                  <Avatar user={peer} size={80} showStatus={false} />
+                </SpeakingIndicator>
+              )}
+              
+              <div style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '8px',
+                backgroundColor: 'rgba(0,0,0,0.6)',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                {peer.username}
+                {peer.isMuted && <Icon icon="mdi:microphone-off" color="var(--color-danger)" width={14} />}
+              </div>
+            </div>
+        ))}
+      </div>
+      <VoiceControls />
+    </div>
+  );
+};
+
+export default VoiceChannel;

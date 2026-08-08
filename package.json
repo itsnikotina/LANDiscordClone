@@ -1,0 +1,22 @@
+{
+  "name": "discord-p2p",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open-source Discord clone for P2P voice/text over any VPN (Radmin, Tailscale, ZeroTier) or LAN - Windows & Linux",
+  "workspaces": [
+    "packages/server",
+    "packages/client"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=packages/server",
+    "dev:client": "npm run dev --workspace=packages/client",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:server": "npm run build --workspace=packages/server",
+    "build:client": "npm run build --workspace=packages/client",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  }
+}
