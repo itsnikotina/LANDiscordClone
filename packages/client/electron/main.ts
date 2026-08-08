@@ -5,6 +5,10 @@ import * as dgram from 'dgram';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Voice call <audio> elements are created without a preceding click (auto-join on channel view) -
+// Chromium's autoplay policy silently blocks that playback otherwise.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 const DISCOVERY_PORT = 41234;
 const DISCOVERY_STALE_MS = 8000;
 

@@ -16,6 +16,7 @@ class WebRTCManager {
   private screenStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private speakingCallbacks: Array<(userId: number, speaking: boolean) => void> = [];
+  private selfSpeakingCallbacks: Array<(speaking: boolean) => void> = [];
   private outputDeviceId: string | null = null;
   
   private readonly config: RTCConfiguration = {
@@ -44,6 +45,7 @@ class WebRTCManager {
       video: false
     });
     this.localStream = stream;
+    this.monitorLocalAudioLevel(stream);
     return stream;
   }
 
@@ -72,6 +74,7 @@ class WebRTCManager {
     connection.ontrack = (event) => {
       if (!audioEl.srcObject) {
         audioEl.srcObject = event.streams[0];
+        audioEl.play().catch(err => console.warn('[webrtc] Autoplay blocked for incoming audio, retrying on next user gesture:', err));
         const p = this.peers.get(peer.userId);
         if (p) {
           p.stream = event.streams[0];
@@ -234,6 +237,49 @@ class WebRTCManager {
     return () => {
       this.speakingCallbacks = this.speakingCallbacks.filter(c => c !== cb);
     };
+  }
+
+  /** Local mic level, separate from remote peers since the local user isn't in `peers`. */
+  onSelfSpeakingChange(cb: (speaking: boolean) => void): () => void {
+    this.selfSpeakingCallbacks.push(cb);
+    return () => {
+      this.selfSpeakingCallbacks = this.selfSpeakingCallbacks.filter(c => c !== cb);
+    };
+  }
+
+  private monitorLocalAudioLevel(stream: MediaStream): void {
+    if (!this.audioContext) {
+      this.audioContext = new AudioContext();
+    }
+
+    const analyser = this.audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.4;
+
+    const source = this.audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    const dataArray = new Float32Array(analyser.frequencyBinCount);
+    let isCurrentlySpeaking = false;
+
+    const checkLevel = () => {
+      if (this.localStream !== stream) return; // stream was replaced/stopped - stop this loop
+
+      analyser.getFloatFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+      const average = sum / dataArray.length;
+      const speaking = average > -50;
+
+      if (speaking !== isCurrentlySpeaking) {
+        isCurrentlySpeaking = speaking;
+        this.selfSpeakingCallbacks.forEach(cb => cb(speaking));
+      }
+
+      setTimeout(checkLevel, 100);
+    };
+
+    checkLevel();
   }
 
   private monitorAudioLevel(userId: number, stream: MediaStream): void {

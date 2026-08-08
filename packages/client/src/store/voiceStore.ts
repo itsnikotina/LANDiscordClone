@@ -19,6 +19,7 @@ interface VoiceStore {
   isMuted: boolean;
   isDeafened: boolean;
   isStreaming: boolean;
+  isSelfSpeaking: boolean;
   joinError: string | null;
   peersArray: VoicePeer[];
   localStream: MediaStream | null;
@@ -46,6 +47,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   isMuted: false,
   isDeafened: false,
   isStreaming: false,
+  isSelfSpeaking: false,
   joinError: null,
   peersArray: [],
   localStream: null,
@@ -74,6 +76,10 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       webrtcManager.onSpeakingChange((userId, speaking) => {
         get().setPeerSpeaking(userId, speaking);
       });
+
+      webrtcManager.onSelfSpeakingChange((speaking) => {
+        set({ isSelfSpeaking: speaking });
+      });
       
     } catch (err) {
       console.error('Failed to join voice channel', err);
@@ -87,7 +93,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       channelId: get().channelId
     });
     webrtcManager.disconnectAll();
-    set({ channelId: null, guildId: null, peersArray: [], localStream: null, screenStream: null, isStreaming: false });
+    set({ channelId: null, guildId: null, peersArray: [], localStream: null, screenStream: null, isStreaming: false, isSelfSpeaking: false });
   },
   
   toggleMute: () => {
