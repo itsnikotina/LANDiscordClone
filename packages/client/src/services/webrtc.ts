@@ -251,6 +251,8 @@ class WebRTCManager {
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
     }
+    // Chrome creates AudioContext in 'suspended' state without a user gesture - analyser reads silence until resumed.
+    this.audioContext.resume().catch(() => {});
 
     const analyser = this.audioContext.createAnalyser();
     analyser.fftSize = 512;
@@ -286,6 +288,7 @@ class WebRTCManager {
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
     }
+    this.audioContext.resume().catch(() => {});
     
     const analyser = this.audioContext.createAnalyser();
     analyser.fftSize = 512;

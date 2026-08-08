@@ -80,7 +80,8 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            border: isSelfSpeaking ? '3px solid var(--color-speaking)' : '3px solid transparent'
           }}>
             {screenStream ? (
               <video
@@ -115,7 +116,8 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              border: peer.isSpeaking ? '3px solid var(--color-speaking)' : '3px solid transparent'
             }}>
               {peer.stream ? (
                 <video 
