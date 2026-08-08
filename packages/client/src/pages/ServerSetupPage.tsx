@@ -1,24 +1,40 @@
-import React, { useState } from 'react';
-import { buildServerConfig, saveServerConfig } from '../services/serverConfig';
+import React, { useState, useEffect } from 'react';
+import { buildServerConfig, saveServerConfig, ServerConfig } from '../services/serverConfig';
 import { applyServerConfig } from '../services/api';
 
 interface ServerSetupPageProps {
   onConfigured: () => void;
 }
 
+interface DiscoveredServer { address: string; apiPort: number; wsPort: number; lastSeen: number; }
+
 const ServerSetupPage: React.FC<ServerSetupPageProps> = ({ onConfigured }) => {
   const [host, setHost] = useState('');
   const [error, setError] = useState('');
+  const [discovered, setDiscovered] = useState<DiscoveredServer[]>([]);
+
+  // Poll for servers auto-detected via UDP broadcast (Electron only - browsers can't do raw UDP).
+  useEffect(() => {
+    if (!window.electronAPI?.getDiscoveredServers) return;
+
+    const poll = () => window.electronAPI.getDiscoveredServers().then(setDiscovered).catch(() => {});
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const connectTo = (config: ServerConfig) => {
+    saveServerConfig(config);
+    applyServerConfig();
+    onConfigured();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!host.trim()) return;
 
     try {
-      const config = buildServerConfig(host);
-      saveServerConfig(config);
-      applyServerConfig();
-      onConfigured();
+      connectTo(buildServerConfig(host));
     } catch {
       setError('Endereço inválido. Use algo como 26.0.0.1 ou 26.0.0.1:3001');
     }
@@ -46,6 +62,30 @@ const ServerSetupPage: React.FC<ServerSetupPageProps> = ({ onConfigured }) => {
           Digite o endereço IP de quem está hospedando o servidor (peça pra essa pessoa).
           Isso só precisa ser feito uma vez.
         </p>
+
+        {discovered.length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: '#b5bac1', fontWeight: 700, textTransform: 'uppercase' }}>
+              Encontrados na rede
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {discovered.map(s => (
+                <button
+                  key={s.address}
+                  type="button"
+                  onClick={() => connectTo({ apiUrl: `http://${s.address}:${s.apiPort}`, wsUrl: `ws://${s.address}:${s.wsPort}` })}
+                  style={{
+                    padding: '10px', background: '#1e1f22', border: '1px solid #3ba55d', borderRadius: '4px',
+                    color: '#fff', cursor: 'pointer', textAlign: 'left', fontSize: '14px'
+                  }}
+                >
+                  🟢 {s.address} <span style={{ color: '#b5bac1' }}>— clique para conectar</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', color: '#72767d', fontSize: '12px', margin: '16px 0' }}>ou digite manualmente</div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>

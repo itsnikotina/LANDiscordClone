@@ -1,8 +1,50 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import * as os from 'os';
 import * as path from 'path';
+import * as dgram from 'dgram';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+const DISCOVERY_PORT = 41234;
+const DISCOVERY_STALE_MS = 8000;
+
+interface DiscoveredServer { address: string; apiPort: number; wsPort: number; lastSeen: number; }
+const discoveredServers = new Map<string, DiscoveredServer>();
+
+/** Listens for the server's UDP presence beacon (see packages/server/src/discovery.ts) to auto-detect it on the LAN/VPN. */
+function startDiscoveryListener(): void {
+  try {
+    const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+
+    socket.on('message', (msg, rinfo) => {
+      try {
+        const data = JSON.parse(msg.toString());
+        if (data?.app !== 'discord-p2p') return;
+        discoveredServers.set(rinfo.address, {
+          address: rinfo.address,
+          apiPort: data.apiPort,
+          wsPort: data.wsPort,
+          lastSeen: Date.now(),
+        });
+      } catch {
+        // ignore malformed packets
+      }
+    });
+
+    socket.on('error', (err) => {
+      console.warn('[Discovery] UDP listener error (non-fatal):', err.message);
+    });
+
+    socket.bind(DISCOVERY_PORT);
+  } catch (err: any) {
+    console.warn('[Discovery] Failed to start UDP listener (non-fatal):', err.message);
+  }
+}
+
+function getDiscoveredServers(): DiscoveredServer[] {
+  const now = Date.now();
+  return Array.from(discoveredServers.values()).filter(s => now - s.lastSeen < DISCOVERY_STALE_MS);
+}
 
 /** Every non-internal IPv4 address this machine has, from any adapter (VPN or physical LAN). */
 function getNetworkIps(): { name: string; address: string }[] {
@@ -66,6 +108,8 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     ipcMain.handle('get-network-ips', () => getNetworkIps());
+    ipcMain.handle('get-discovered-servers', () => getDiscoveredServers());
+    startDiscoveryListener();
 
     const menu = Menu.buildFromTemplate([
       {

@@ -7,6 +7,7 @@ import { config } from './config';
 import { initDb, closeDb } from './database/db';
 import { initWebSocketServer } from './gateway/socket';
 import { toCamelCase } from './utils/caseTransform';
+import { startDiscoveryBeacon } from './discovery';
 
 // Route imports
 import authRoutes from './auth/routes';
@@ -72,6 +73,9 @@ import rolesRoutes from './api/roles';
 
   // Initialize WebSocket Gateway
   initWebSocketServer(config.wsPort);
+
+  // Broadcast presence so clients can auto-detect this server on the LAN/VPN.
+  startDiscoveryBeacon();
 
   // Graceful shutdown
   process.on('SIGINT', () => {
