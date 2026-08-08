@@ -143,8 +143,15 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   setInputDevice: async (deviceId: string) => {
     localStorage.setItem('discord_p2p_input_device', deviceId);
     set({ inputDeviceId: deviceId });
-    // Takes effect next time a voice channel is joined (swapping mid-call would need
-    // RTCRtpSender.replaceTrack() on every peer connection - not implemented yet).
+    // If in a call, swap the mic live on every peer connection.
+    if (get().channelId) {
+      try {
+        const stream = await webrtcManager.setInputDevice(deviceId || undefined);
+        set({ localStream: stream });
+      } catch (err) {
+        console.error('Failed to switch input device', err);
+      }
+    }
   },
 
   setOutputDevice: async (deviceId: string) => {

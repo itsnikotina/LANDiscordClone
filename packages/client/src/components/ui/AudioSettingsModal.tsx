@@ -58,7 +58,7 @@ const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({ isOpen, onClose
         </div>
 
         <div style={{ color: '#72767d', fontSize: '12px' }}>
-          O microfone escolhido vale a partir da próxima vez que você entrar num canal de voz.
+          As mudanças de microfone e saída são aplicadas na hora, mesmo durante uma call.
         </div>
       </div>
     </Modal>

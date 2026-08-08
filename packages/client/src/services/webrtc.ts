@@ -42,13 +42,49 @@ class WebRTCManager {
   }
 
   async initLocalAudio(deviceId?: string): Promise<MediaStream> {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: deviceId ? { deviceId: { exact: deviceId } } : true,
-      video: false
-    });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+        video: false
+      });
+    } catch (e) {
+      if (!deviceId) throw e;
+      // Saved device id can go stale (unplugged/re-enumerated) - fall back to system default.
+      console.warn('[webrtc] Saved microphone unavailable, falling back to system default', e);
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    }
+    console.log('[webrtc] Capturing microphone:', stream.getAudioTracks()[0]?.label ?? 'unknown');
     this.localStream = stream;
     this.monitorLocalAudioLevel(stream);
     return stream;
+  }
+
+  /** Swaps the mic mid-call: replaces the outgoing audio track on every peer connection. */
+  async setInputDevice(deviceId?: string): Promise<MediaStream> {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+      video: false
+    });
+    const newTrack = newStream.getAudioTracks()[0];
+    const oldStream = this.localStream;
+    const oldTrack = oldStream?.getAudioTracks()[0];
+    if (oldTrack) newTrack.enabled = oldTrack.enabled; // preserve mute state
+
+    for (const peer of this.peers.values()) {
+      const sender = peer.connection.getSenders().find(
+        s => s.track?.kind === 'audio' && (!oldStream || oldStream.getTracks().includes(s.track!))
+      );
+      if (sender) {
+        await sender.replaceTrack(newTrack).catch(e => console.error('[webrtc] replaceTrack failed', e));
+      }
+    }
+
+    console.log('[webrtc] Switched microphone to:', newTrack?.label ?? 'unknown');
+    this.localStream = newStream; // old monitor loop stops itself on next tick
+    oldStream?.getTracks().forEach(t => t.stop());
+    this.monitorLocalAudioLevel(newStream);
+    return newStream;
   }
 
   async connectToPeer(peer: { userId: number; username: string; radminIp: string }, isInitiator: boolean): Promise<void> {
