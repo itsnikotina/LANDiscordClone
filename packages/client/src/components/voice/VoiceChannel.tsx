@@ -14,7 +14,7 @@ interface Channel {
 const tileBackground = (color: string) => `linear-gradient(160deg, ${color}99, #1e1f22)`;
 
 const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel, guildId }) => {
-  const { peersArray, channelId, joinChannel, joinError, isMuted, screenStream } = useVoiceStore();
+  const { peersArray, channelId, joinChannel, joinError, isMuted, isSelfSpeaking, screenStream } = useVoiceStore();
   const { user } = useAuthStore();
   const isInVoice = channelId === channel.id;
 
@@ -79,7 +79,8 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            boxShadow: isSelfSpeaking ? 'inset 0 0 0 3px var(--color-speaking)' : 'none'
           }}>
             {screenStream ? (
               <video
@@ -112,7 +113,8 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              boxShadow: peer.isSpeaking ? 'inset 0 0 0 3px var(--color-speaking)' : 'none'
             }}>
               {peer.stream ? (
                 <video 
