@@ -20,6 +20,7 @@ interface GuildState {
   deleteMessage: (channelId: string, messageId: string) => void;
   editMessage: (channelId: string, messageId: string, content: string) => void;
   updateVoiceState: (state: VoiceState) => void;
+  setVoiceStates: (states: VoiceState[]) => void;
   removeVoiceState: (userId: number) => void;
   addMember: (guildId: string, member: Member) => void;
   updateMemberStatus: (userId: number, status: string) => void;
@@ -121,6 +122,8 @@ export const useGuildStore = create<GuildState>((set, get) => ({
       voiceStates: [...filtered, state]
     };
   }),
+  
+  setVoiceStates: (states: VoiceState[]) => set({ voiceStates: states }),
   
   addMember: (guildId: string, member: Member) => set((state) => ({
     guilds: state.guilds.map(g => {

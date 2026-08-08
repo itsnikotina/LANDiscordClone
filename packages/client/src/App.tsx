@@ -27,6 +27,7 @@ const App: React.FC = () => {
 
       const handleReady = (data: any) => {
         useGuildStore.getState().setGuilds(data.guilds);
+        useGuildStore.getState().setVoiceStates(data.voiceStates ?? []);
       };
 
       const handleMessageCreate = (data: any) => {
