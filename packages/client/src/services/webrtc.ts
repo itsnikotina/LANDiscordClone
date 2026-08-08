@@ -8,10 +8,13 @@ export interface PeerInfo {
   audioEl: HTMLAudioElement;
   stream?: MediaStream;
   isSpeaking: boolean;
+  isInitiator: boolean;
 }
 
 class WebRTCManager {
   private peers = new Map<number, PeerInfo>();
+  // Guards against firing multiple ICE restarts for the same peer at once.
+  private restartingPeers = new Set<number>();
   // ICE candidates that arrived before the peer/remoteDescription was ready.
   private pendingCandidates = new Map<number, RTCIceCandidateInit[]>();
   private localStream: MediaStream | null = null;
@@ -104,6 +107,9 @@ class WebRTCManager {
 
     connection.onconnectionstatechange = () => {
       console.log(`[webrtc] peer ${peer.userId} connection: ${connection.connectionState}`);
+      if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') {
+        this.attemptIceRestart(peer.userId);
+      }
     };
     connection.oniceconnectionstatechange = () => {
       console.log(`[webrtc] peer ${peer.userId} ice: ${connection.iceConnectionState}`);
@@ -147,7 +153,8 @@ class WebRTCManager {
       ...peer,
       connection,
       audioEl,
-      isSpeaking: false
+      isSpeaking: false,
+      isInitiator
     });
 
     if (isInitiator) {
@@ -203,6 +210,32 @@ class WebRTCManager {
     }
   }
 
+  /**
+   * No STUN/TURN means a stuck ICE connection never self-heals - without this, a transient
+   * network blip permanently kills audio in one/both directions until someone leaves and rejoins.
+   * Only the original offer-sender renegotiates (avoids both sides racing/glare).
+   */
+  private async attemptIceRestart(userId: number): Promise<void> {
+    const peer = this.peers.get(userId);
+    if (!peer || !peer.isInitiator || this.restartingPeers.has(userId)) return;
+
+    this.restartingPeers.add(userId);
+    console.warn(`[webrtc] peer ${userId} connection unhealthy, attempting ICE restart`);
+    try {
+      const offer = await peer.connection.createOffer({ iceRestart: true });
+      await peer.connection.setLocalDescription(offer);
+      gateway.send(GatewayOpcode.VOICE_SIGNAL, {
+        targetUserId: userId,
+        type: 'offer',
+        data: offer
+      });
+    } catch (e) {
+      console.error(`[webrtc] ICE restart failed for peer ${userId}`, e);
+    } finally {
+      this.restartingPeers.delete(userId);
+    }
+  }
+
   private async flushPendingCandidates(userId: number, connection: RTCPeerConnection): Promise<void> {
     const queue = this.pendingCandidates.get(userId);
     if (!queue) return;
@@ -218,6 +251,7 @@ class WebRTCManager {
 
   disconnectPeer(userId: number): void {
     this.pendingCandidates.delete(userId);
+    this.restartingPeers.delete(userId);
     const peer = this.peers.get(userId);
     if (peer) {
       peer.connection.close();
