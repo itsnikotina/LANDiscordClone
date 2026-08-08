@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb, Permission, queryOne, queryAll, runWrite } from '../database/db';
 import { authMiddleware } from '../middleware/auth';
+import { broadcastGuildMemberAdd } from '../gateway/socket';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -186,6 +187,15 @@ router.post('/join', (req: Request, res: Response): void => {
     const existing = queryOne('SELECT 1 FROM guild_members WHERE guild_id = ? AND user_id = ?', [guild.id, userId]);
     if (!existing) {
       runWrite('INSERT INTO guild_members (guild_id, user_id) VALUES (?, ?)', [guild.id, userId]);
+
+      // Notify already-connected members so their member list updates without a relogin.
+      const newMember = queryOne<{ userId: number; username: string; avatarColor: string; status: string }>(
+        'SELECT id as userId, username, avatar_color as avatarColor, status FROM users WHERE id = ?',
+        [userId]
+      );
+      if (newMember) {
+        broadcastGuildMemberAdd(guild.id, newMember);
+      }
     }
 
     const newGuild = queryOne('SELECT * FROM guilds WHERE id = ?', [guild.id]);

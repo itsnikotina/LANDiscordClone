@@ -12,6 +12,8 @@ export interface PeerInfo {
 
 class WebRTCManager {
   private peers = new Map<number, PeerInfo>();
+  // ICE candidates that arrived before the peer/remoteDescription was ready.
+  private pendingCandidates = new Map<number, RTCIceCandidateInit[]>();
   private localStream: MediaStream | null = null;
   private screenStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -120,6 +122,7 @@ class WebRTCManager {
       }
       if (peer) {
         await peer.connection.setRemoteDescription(new RTCSessionDescription(data));
+        await this.flushPendingCandidates(fromUserId, peer.connection);
         const answer = await peer.connection.createAnswer();
         await peer.connection.setLocalDescription(answer);
         gateway.send(GatewayOpcode.VOICE_SIGNAL, {
@@ -131,19 +134,39 @@ class WebRTCManager {
     } else if (type === 'answer') {
       if (peer) {
         await peer.connection.setRemoteDescription(new RTCSessionDescription(data));
+        await this.flushPendingCandidates(fromUserId, peer.connection);
       }
     } else if (type === 'candidate') {
-      if (peer) {
-        try {
-          await peer.connection.addIceCandidate(new RTCIceCandidate(data));
-        } catch (e) {
-          console.error('Error adding ICE candidate', e);
-        }
+      // Candidates can arrive before the offer/answer; queue them until remoteDescription is set.
+      if (!peer || !peer.connection.remoteDescription) {
+        const queue = this.pendingCandidates.get(fromUserId) ?? [];
+        queue.push(data);
+        this.pendingCandidates.set(fromUserId, queue);
+        return;
+      }
+      try {
+        await peer.connection.addIceCandidate(new RTCIceCandidate(data));
+      } catch (e) {
+        console.error('Error adding ICE candidate', e);
+      }
+    }
+  }
+
+  private async flushPendingCandidates(userId: number, connection: RTCPeerConnection): Promise<void> {
+    const queue = this.pendingCandidates.get(userId);
+    if (!queue) return;
+    this.pendingCandidates.delete(userId);
+    for (const candidate of queue) {
+      try {
+        await connection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error('Error adding queued ICE candidate', e);
       }
     }
   }
 
   disconnectPeer(userId: number): void {
+    this.pendingCandidates.delete(userId);
     const peer = this.peers.get(userId);
     if (peer) {
       peer.connection.close();

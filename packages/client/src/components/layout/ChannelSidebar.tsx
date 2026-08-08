@@ -134,8 +134,9 @@ const ChannelSidebar: React.FC = () => {
                           <span style={{ flex: 1, fontSize: '13px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {displayName}
                           </span>
-                          {vs.muted && <Icon icon="mdi:microphone-off" color="var(--color-danger)" width={14} />}
-                          {vs.streaming && <Badge color="#ed4245">AO VIVO</Badge>}
+                          {/* SQLite delivers 0/1 numbers; `0 &&` would render a literal "0" */}
+                          {!!vs.muted && <Icon icon="mdi:microphone-off" color="var(--color-danger)" width={14} />}
+                          {!!vs.streaming && <Badge color="#ed4245">AO VIVO</Badge>}
                         </div>
                       );
                     })}

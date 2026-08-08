@@ -78,10 +78,12 @@ const App: React.FC = () => {
         if (data.type === 'offer') {
           const voiceStore = useVoiceStore.getState();
           if (!voiceStore.peersArray.some(p => p.userId === data.fromUserId)) {
-            const member = useGuildStore.getState().getMember(data.fromUserId);
+            const guildState = useGuildStore.getState();
+            const member = guildState.getMember(data.fromUserId);
+            const voiceState = guildState.voiceStates.find(v => v.userId === data.fromUserId);
             voiceStore.addPeer({
               userId: data.fromUserId,
-              username: member?.username ?? `User ${data.fromUserId}`,
+              username: member?.username ?? voiceState?.username ?? `User ${data.fromUserId}`,
               avatarColor: member?.avatarColor ?? '#5865F2',
               isSpeaking: false,
               isMuted: false,
@@ -91,6 +93,10 @@ const App: React.FC = () => {
           }
         }
         webrtcManager.handleSignal(data.fromUserId, data.type, data.data);
+      };
+      
+      const handleGuildMemberAdd = (data: any) => {
+        useGuildStore.getState().addMember(data.guildId, data.member);
       };
       
       const handlePresenceUpdate = (data: any) => {
@@ -106,6 +112,7 @@ const App: React.FC = () => {
       gateway.on(GatewayOpcode.VOICE_JOINED, handleVoiceJoined);
       gateway.on(GatewayOpcode.VOICE_PEER_SIGNAL, handleVoicePeerSignal);
       gateway.on(GatewayOpcode.PRESENCE_UPDATE, handlePresenceUpdate);
+      gateway.on(GatewayOpcode.GUILD_MEMBER_ADD, handleGuildMemberAdd);
 
       return () => {
         gateway.off(GatewayOpcode.READY, handleReady);
@@ -117,6 +124,7 @@ const App: React.FC = () => {
         gateway.off(GatewayOpcode.VOICE_JOINED, handleVoiceJoined);
         gateway.off(GatewayOpcode.VOICE_PEER_SIGNAL, handleVoicePeerSignal);
         gateway.off(GatewayOpcode.PRESENCE_UPDATE, handlePresenceUpdate);
+        gateway.off(GatewayOpcode.GUILD_MEMBER_ADD, handleGuildMemberAdd);
         gateway.disconnect();
       };
     }

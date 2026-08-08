@@ -37,6 +37,7 @@ const OP_VOICE_JOINED      = 19;
 const OP_VOICE_LEFT        = 20;
 const OP_MESSAGE_UPDATE    = 21; // sent from REST handlers
 const OP_MESSAGE_DELETE    = 22; // sent from REST handlers
+const OP_GUILD_MEMBER_ADD  = 23; // sent from REST handlers (invite join)
 const OP_ERROR             = 99;
 
 /** Heartbeat interval in ms — client must respond within 3 missed cycles. */
@@ -180,7 +181,10 @@ export function initWebSocketServer(port: number): void {
             };
           });
 
-          const voiceStates = queryAll('SELECT * FROM voice_states');
+          const voiceStates = queryAll(
+            `SELECT vs.*, u.username, u.avatar_color
+             FROM voice_states vs JOIN users u ON u.id = vs.user_id`
+          );
 
           ws.send(JSON.stringify(toCamelCase({
             op: OP_READY,
@@ -262,7 +266,11 @@ function handleAuthenticatedMessage(wsId: string, op: number, d: any): void {
       );
       signaling.joinVoiceRoom(channelId, client.userId);
 
-      const vs = queryOne('SELECT * FROM voice_states WHERE user_id = ?', [client.userId]);
+      const vs = queryOne(
+        `SELECT vs.*, u.username, u.avatar_color
+         FROM voice_states vs JOIN users u ON u.id = vs.user_id WHERE vs.user_id = ?`,
+        [client.userId]
+      );
       broadcastToGuildMembers(guildId, { op: OP_VOICE_STATE_UPDATE, d: vs });
 
       // Send list of existing peers to the newly joined client
@@ -314,7 +322,11 @@ function handleAuthenticatedMessage(wsId: string, op: number, d: any): void {
             'UPDATE voice_states SET muted = ?, deafened = ?, streaming = ? WHERE user_id = ?',
             [d.muted ? 1 : 0, d.deafened ? 1 : 0, d.streaming ? 1 : 0, client.userId]
           );
-          const updated = queryOne('SELECT * FROM voice_states WHERE user_id = ?', [client.userId]);
+          const updated = queryOne(
+            `SELECT vs.*, u.username, u.avatar_color
+             FROM voice_states vs JOIN users u ON u.id = vs.user_id WHERE vs.user_id = ?`,
+            [client.userId]
+          );
           broadcastToGuildMembers(vs.guild_id, { op: OP_VOICE_STATE_UPDATE, d: updated });
         }
       }
@@ -388,4 +400,9 @@ export function broadcastMessageUpdate(guildId: string, message: object): void {
 /** Used by message REST API to broadcast MESSAGE_DELETE to a channel's guild members. */
 export function broadcastMessageDelete(guildId: string, channelId: string, messageId: string): void {
   broadcastToGuildMembers(guildId, { op: OP_MESSAGE_DELETE, d: { channelId, messageId } });
+}
+
+/** Used by guild REST API to notify existing members when someone joins via invite. */
+export function broadcastGuildMemberAdd(guildId: string, member: object): void {
+  broadcastToGuildMembers(guildId, { op: OP_GUILD_MEMBER_ADD, d: { guildId, member } });
 }

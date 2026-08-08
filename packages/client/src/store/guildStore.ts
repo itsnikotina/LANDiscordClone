@@ -21,6 +21,7 @@ interface GuildState {
   editMessage: (channelId: string, messageId: string, content: string) => void;
   updateVoiceState: (state: VoiceState) => void;
   removeVoiceState: (userId: number) => void;
+  addMember: (guildId: string, member: Member) => void;
   updateMemberStatus: (userId: number, status: string) => void;
   getActiveGuild: () => Guild | undefined;
   getChannel: (channelId: string) => Channel | undefined;
@@ -116,6 +117,14 @@ export const useGuildStore = create<GuildState>((set, get) => ({
       voiceStates: [...filtered, state]
     };
   }),
+  
+  addMember: (guildId: string, member: Member) => set((state) => ({
+    guilds: state.guilds.map(g => {
+      if (g.id !== guildId) return g;
+      if (g.members.some(m => m.userId === member.userId)) return g;
+      return { ...g, members: [...g.members, member] };
+    })
+  })),
   
   removeVoiceState: (userId: number) => set((state) => ({
     voiceStates: state.voiceStates.filter(v => v.userId !== userId)

@@ -20,6 +20,7 @@ export enum GatewayOpcode {
   VOICE_LEFT = 20,
   MESSAGE_UPDATE = 21,
   MESSAGE_DELETE = 22,
+  GUILD_MEMBER_ADD = 23,
   ERROR = 99
 }
 
