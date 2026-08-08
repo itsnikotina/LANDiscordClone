@@ -256,22 +256,25 @@ class WebRTCManager {
 
     const analyser = this.audioContext.createAnalyser();
     analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.4;
 
     const source = this.audioContext.createMediaStreamSource(stream);
     source.connect(analyser);
 
-    const dataArray = new Float32Array(analyser.frequencyBinCount);
+    const dataArray = new Float32Array(analyser.fftSize);
     let isCurrentlySpeaking = false;
 
     const checkLevel = () => {
       if (this.localStream !== stream) return; // stream was replaced/stopped - stop this loop
 
-      analyser.getFloatFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-      const average = sum / dataArray.length;
-      const speaking = average > -50;
+      // RMS of the raw waveform is a far more reliable "is anyone talking" signal than
+      // averaging frequency-bin dB values, which stays near-silent regardless of actual
+      // voice volume because most high-frequency bins are always near the noise floor.
+      analyser.getFloatTimeDomainData(dataArray);
+      let sumSquares = 0;
+      for (let i = 0; i < dataArray.length; i++) sumSquares += dataArray[i] * dataArray[i];
+      const rms = Math.sqrt(sumSquares / dataArray.length);
+      const db = 20 * Math.log10(rms || 0.000001);
+      const speaking = db > -50;
 
       if (speaking !== isCurrentlySpeaking) {
         isCurrentlySpeaking = speaking;
@@ -292,27 +295,22 @@ class WebRTCManager {
     
     const analyser = this.audioContext.createAnalyser();
     analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.4;
     
     const source = this.audioContext.createMediaStreamSource(stream);
     source.connect(analyser);
     
-    const dataArray = new Float32Array(analyser.frequencyBinCount);
+    const dataArray = new Float32Array(analyser.fftSize);
     let isCurrentlySpeaking = false;
     
     const checkLevel = () => {
       if (!this.peers.has(userId)) return;
       
-      analyser.getFloatFrequencyData(dataArray);
-      
-      // Calculate average level
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      const average = sum / dataArray.length;
-      
-      const speaking = average > -50;
+      analyser.getFloatTimeDomainData(dataArray);
+      let sumSquares = 0;
+      for (let i = 0; i < dataArray.length; i++) sumSquares += dataArray[i] * dataArray[i];
+      const rms = Math.sqrt(sumSquares / dataArray.length);
+      const db = 20 * Math.log10(rms || 0.000001);
+      const speaking = db > -50;
       
       if (speaking !== isCurrentlySpeaking) {
         isCurrentlySpeaking = speaking;
