@@ -99,6 +99,10 @@ const App: React.FC = () => {
         useGuildStore.getState().addMember(data.guildId, data.member);
       };
       
+      const handleChannelCreate = (data: any) => {
+        useGuildStore.getState().addChannel(data.guildId, data.channel);
+      };
+      
       const handlePresenceUpdate = (data: any) => {
         useGuildStore.getState().updateMemberStatus(data.userId, data.status);
       };
@@ -113,6 +117,7 @@ const App: React.FC = () => {
       gateway.on(GatewayOpcode.VOICE_PEER_SIGNAL, handleVoicePeerSignal);
       gateway.on(GatewayOpcode.PRESENCE_UPDATE, handlePresenceUpdate);
       gateway.on(GatewayOpcode.GUILD_MEMBER_ADD, handleGuildMemberAdd);
+      gateway.on(GatewayOpcode.CHANNEL_CREATE, handleChannelCreate);
 
       return () => {
         gateway.off(GatewayOpcode.READY, handleReady);
@@ -125,6 +130,7 @@ const App: React.FC = () => {
         gateway.off(GatewayOpcode.VOICE_PEER_SIGNAL, handleVoicePeerSignal);
         gateway.off(GatewayOpcode.PRESENCE_UPDATE, handlePresenceUpdate);
         gateway.off(GatewayOpcode.GUILD_MEMBER_ADD, handleGuildMemberAdd);
+        gateway.off(GatewayOpcode.CHANNEL_CREATE, handleChannelCreate);
         gateway.disconnect();
       };
     }

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb, Permission, queryOne, queryAll, runWrite } from '../database/db';
 import { authMiddleware } from '../middleware/auth';
+import { broadcastChannelCreate } from '../gateway/socket';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router({ mergeParams: true });
@@ -64,6 +65,9 @@ router.post('/', (req: Request, res: Response): void => {
     `, [channelId, guildId, categoryId || null, name, type || 'TEXT', topic || null, position]);
 
     const newChannel = queryOne('SELECT * FROM channels WHERE id = ?', [channelId]);
+    if (newChannel) {
+      broadcastChannelCreate(String(guildId), newChannel);
+    }
     res.status(201).json(newChannel);
   } catch (error) {
     console.error('Error creating channel:', error);

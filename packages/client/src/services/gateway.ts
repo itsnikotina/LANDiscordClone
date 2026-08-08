@@ -21,6 +21,7 @@ export enum GatewayOpcode {
   MESSAGE_UPDATE = 21,
   MESSAGE_DELETE = 22,
   GUILD_MEMBER_ADD = 23,
+  CHANNEL_CREATE = 24,
   ERROR = 99
 }
 

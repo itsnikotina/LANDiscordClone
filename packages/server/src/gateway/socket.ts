@@ -38,6 +38,7 @@ const OP_VOICE_LEFT        = 20;
 const OP_MESSAGE_UPDATE    = 21; // sent from REST handlers
 const OP_MESSAGE_DELETE    = 22; // sent from REST handlers
 const OP_GUILD_MEMBER_ADD  = 23; // sent from REST handlers (invite join)
+const OP_CHANNEL_CREATE    = 24; // sent from REST handlers
 const OP_ERROR             = 99;
 
 /** Heartbeat interval in ms — client must respond within 3 missed cycles. */
@@ -405,4 +406,9 @@ export function broadcastMessageDelete(guildId: string, channelId: string, messa
 /** Used by guild REST API to notify existing members when someone joins via invite. */
 export function broadcastGuildMemberAdd(guildId: string, member: object): void {
   broadcastToGuildMembers(guildId, { op: OP_GUILD_MEMBER_ADD, d: { guildId, member } });
+}
+
+/** Used by channel REST API to notify guild members of a newly created channel. */
+export function broadcastChannelCreate(guildId: string, channel: object): void {
+  broadcastToGuildMembers(guildId, { op: OP_CHANNEL_CREATE, d: { guildId, channel } });
 }

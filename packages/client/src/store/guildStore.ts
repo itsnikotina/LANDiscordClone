@@ -49,6 +49,10 @@ export const useGuildStore = create<GuildState>((set, get) => ({
   addChannel: (guildId: string, channel: Channel) => set((state) => ({
     guilds: state.guilds.map(g => {
       if (g.id !== guildId) return g;
+      // Creator receives the channel twice (REST response + own gateway broadcast).
+      const exists = g.channels.some(c => c.id === channel.id)
+        || g.categories.some(cat => (cat.channels || []).some(c => c.id === channel.id));
+      if (exists) return g;
       if (channel.categoryId) {
         return {
           ...g,
