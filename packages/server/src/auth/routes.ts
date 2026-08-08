@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { queryOne, queryAll, runWrite } from '../database/db';
+import { queryOne, queryAll, runWrite, getLastInsertId } from '../database/db';
 import { signToken } from './jwt';
 import { config } from '../config';
 import { authMiddleware } from '../middleware/auth';
@@ -57,10 +57,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       [username, passwordHash, avatarColor, radminIp]
     );
 
-    const newUser = queryOne<{ id: number }>(
-      'SELECT last_insert_rowid() as id'
-    );
-    const userId = newUser!.id;
+    const userId = getLastInsertId();
 
     // Auto-join the default 'General' guild if exists
     const defaultGuild = queryOne<{ id: string }>(

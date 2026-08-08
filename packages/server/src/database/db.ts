@@ -97,6 +97,17 @@ export function execSql(sql: string): void {
 }
 
 /**
+ * Returns the rowid of the most recently inserted row on this connection.
+ * IMPORTANT: must use db.exec() here, not the queryOne()/prepare()+bind() path -
+ * calling stmt.bind() (even with an empty params array) resets sql.js's internal
+ * last_insert_rowid() tracking to 0, causing it to always report the wrong id.
+ */
+export function getLastInsertId(): number {
+  const result = getDb().exec('SELECT last_insert_rowid() as id');
+  return (result[0]?.values[0]?.[0] as number) ?? 0;
+}
+
+/**
  * Returns the singleton sql.js Database instance (synchronous after init).
  * Must call initDb() before using this.
  */
