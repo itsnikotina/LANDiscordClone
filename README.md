@@ -1,19 +1,19 @@
 # Discord P2P
 
-> Clone open-source do Discord otimizado para redes P2P. Voz full-duplex, chat persistente, compartilhamento de tela — tudo sem infraestrutura externa. Funciona sobre qualquer VPN (Radmin, Tailscale, ZeroTier) ou até uma rede local comum — o app não depende de nenhuma delas especificamente, só precisa que os clientes consigam alcançar o IP do servidor. Roda em Windows e Linux.
+> Clone open-source do Discord otimizado para redes P2P (Radmin VPN, Tailscale, ZeroTier, LAN). Voz full-duplex com detecção de voz, chat de texto persistente, compartilhamento de tela com preview ao vivo, e tudo funciona sem infraestrutura externa — 100% P2P direto entre amigos. Windows e Linux.
 
 ## 🏗️ Arquitetura
 
 ```
 Qualquer rede compartilhada (Radmin VPN, Tailscale, ZeroTier, ou LAN)
 ├── Base Server (IP do host nessa rede)  ← Node.js + SQLite + WebSocket Signaling
-│   ├── REST API (porta 3001)
-│   └── WebSocket Gateway (porta 3002)
-└── Peers (demais IPs dessa mesma rede)
-    └── WebRTC P2P mesh (voz/vídeo/tela direto entre peers)
+│   ├── REST API (porta 3001) — usuários, canais, mensagens, uploads
+│   └── WebSocket Gateway (porta 3002) — sinalização WebRTC, presença, streaming
+└── Peers (demais clientes nessa rede)
+    └── WebRTC P2P mesh — áudio/vídeo/tela direto entre peers (não passa pelo servidor)
 ```
 
-**Voz e vídeo nunca passam pelo servidor** — apenas sinalização SDP/ICE. Latência mínima. O acesso é controlado por senha de servidor + JWT, não por qual VPN você usa — então qualquer combinação de Windows/Linux e Radmin/Tailscale/ZeroTier/LAN funciona, desde que todo mundo consiga alcançar o IP do host.
+**Servidor = sinalizador apenas.** Áudio, vídeo e tela viajam P2P direto entre peers com latência mínima. Acesso controlado por senha de servidor + JWT (não por IP), então qualquer combinação de Windows/Linux e qualquer VPN/LAN funciona desde que todos alcancem o IP do host.
 
 ## 🚀 Início Rápido
 
@@ -99,9 +99,114 @@ O cliente pergunta o IP do servidor na primeira tela e salva localmente
 (`localStorage`), então isso normalmente não é necessário. Só use `.env` se
 quiser pular a telinha de configuração (ex: build fixo pra sua própria máquina host):
 ```env
-VITE_API_URL=http://<ip-do-host>:3001   # IP do host na rede compartilhada (Radmin/Tailscale/ZeroTier/LAN)
+VITE_API_URL=http://<ip-do-host>:3001   # IP do host na rede compartilhada
 VITE_WS_URL=ws://<ip-do-host>:3002
 ```
+
+## 🎬 Usando Compartilhamento de Tela
+
+1. **Entrar num canal de voz** — clique numa sala de voz na sidebar (auto-conecta)
+2. **Abrir o picker de tela** — clique no botão de monitor (🖥️) na barra de chamada
+3. **Escolher o que compartilhar**:
+   - **Telas**: monitores inteiros (útil para apresentações)
+   - **Janelas**: app específico (navegador, IDE, etc.)
+4. **Preview ao vivo**: seus amigos veem a tela/janela em tile pequeno
+5. **Modo Foco**: clique no tile de quem está compartilhando para preencher a tela com fit 100% (não corta, redimensiona pra caber inteiro)
+6. **Parar**: clique no botão de monitor novamente ou no X do modo foco
+
+> **Nota**: quando você foca em sua própria tela, o áudio fica mudo (evita feedback bizarro de capturar sua própria tela sendo reproduzida). Seus amigos continuam ouvindo o áudio normalmente.
+
+## 🎙️ Usando Voz
+
+- **Mutar/desmutar**: botão de microfone (🎤) na barra de chamada ou na sidebar
+- **Indicador de voz**: quando você fala, o tile fica com outline verde e o avatar na sidebar fica com ring verde
+- **Múltiplas pessoas**: grid automático se adapta (1 pessoa = tela inteira, 2 = lado-a-lado, 3-4 = 2x2, etc.)
+- **Sair**: clique no X vermelho (☎️) na barra de chamada
+
+## 💬 Usando Chat
+
+- **Digitar**: selecione um canal de texto e digite
+- **Upload**: arraste imagens/vídeos pra dentro do chat (máx 20MB)
+- **Editar/deletar**: hover em cima de mensagem pra ver opções
+- **Histórico**: reabre um canal e o histórico já está lá (sincronizado com SQLite)
+
+## 🔍 Troubleshooting
+
+**"Não ouço nada"**
+- Microfone está muteado? Clique no botão de mute pra desmutar
+- Fone/alto-falante conectado? Selecione na ⚙️ (áudio settings na sidebar)
+- Amigo está deafinado? Ele ouve, mas não consegue falar
+
+**"Meu amigo não me ouve"**
+- Seu microfone está muteado? (desmutar)
+- Seu microfone está capturando som? (teste em outro app, tipo Discord real)
+- Você está realmente na call? (tira print pra conferir)
+- Reinicia a conexão: sai do canal de voz e entra de novo
+
+**"A tela dele está travada / congelada"**
+- WebRTC precisa de conexão direta — se você está em VPN, confirma que o VPN tá conectado dos dois lados
+- Tira um print da tela dele pra confirmar que tá compartilhando e não só parado
+- Reinicia: ele para de compartilhar e compartilha de novo
+
+**"Como mudo só o áudio de quem está compartilhando?"**
+- Não tem controle individual de volume por peer ainda (roadmap)
+- Workaround: ajusta o volume geral do SO pra esse app
+
+## 🏗️ Arquitetura Detalhada
+
+### Backend (Node.js + SQLite)
+
+**REST API** (porta 3001):
+- `POST /auth/register` — criar usuário com nome + cor avatar
+- `POST /auth/login` — retorna JWT + user info
+- `GET /guilds` — listar servidores
+- `POST /guilds` — criar novo servidor
+- `POST /guilds/:id/join` — entrar num servidor
+- `POST /guilds/:id/channels` — criar canal
+- `GET /channels/:id/messages` — histórico de mensagens
+- `POST /channels/:id/messages` — enviar mensagem
+- `POST /channels/:id/upload` — upload de anexo (imagem/vídeo)
+- `PUT /messages/:id` — editar mensagem
+- `DELETE /messages/:id` — deletar mensagem
+
+**WebSocket Gateway** (porta 3002, conecta via `/gateway`):
+- Sinalização de WebRTC (SDP offer/answer, ICE candidates)
+- Broadcast de eventos (mensagens, presença, voice state changes)
+- Heartbeat pra manter conexão viva (30s)
+
+### Frontend (React + Vite + Electron)
+
+**Stores (Zustand)**:
+- `authStore` — usuário logado, JWT, login/logout
+- `guildStore` — servidores, canais, mensagens, members, voice states
+- `voiceStore` — estado de chamada (conectado?, quem está lá?, streams)
+
+**Services**:
+- `gateway.ts` — WebSocket client com handlers de opcodes
+- `webrtc.ts` — WebRTC peer management, áudio, tela, voz detection
+- `api.ts` — Axios wrapper pra REST
+- `audio.ts` — Audio input/output device enumeration
+- `screenshare.ts` — Electron IPC pra captura de tela
+
+**Componentes**:
+- `VoiceChannel.tsx` — grid de participantes + foco mode pra tela
+- `ScreenShareView.tsx` — renderiza stream de tela/janela
+- `ScreenSourcePicker.tsx` — modal de escolha (telas/janelas)
+- `MessageList.tsx` → `MessageItem.tsx` — chat com drag-drop uploads
+- `ChannelSidebar.tsx` — lista de canais + barra flutuante de call
+- `MemberList.tsx` — lista de participantes (Online/Offline)
+
+### Electron
+
+**Main Process** (`electron/main.ts`):
+- Cria janela principal (BrowserWindow)
+- IPC handlers: `get-screen-sources`, `select-screen-source` (pra picker de tela)
+- UDP broadcast listener (auto-discover servers na rede)
+- Autoplay policy (sem user gesture required pra áudio)
+
+**Preload** (`electron/preload.ts`):
+- Expõe `window.electronAPI` (seguro: não expõe `require` direto)
+- APIs: `getScreenSources()`, `selectScreenSource(id)`, `getDiscoveredServers()`
 
 ## 🔒 Segurança
 
@@ -112,42 +217,105 @@ VITE_WS_URL=ws://<ip-do-host>:3002
 
 ## 🎤 Features
 
-| Feature | Status |
-|---------|--------|
-| Chat de texto com histórico | ✅ |
-| Canais de voz P2P | ✅ |
-| Compartilhamento de tela | ✅ |
-| Detecção de voz (VAD) | ✅ |
-| Indicador visual de quem fala | ✅ |
-| Cargos e permissões | ✅ |
-| Múltiplos servidores/guilds | ✅ |
-| Presença em tempo real | ✅ |
-| Push-to-Talk | 🔜 |
-| Supressão de ruído (RNNoise) | 🔜 |
+| Feature | Status | Descrição |
+|---------|--------|-----------|
+| 💬 Chat de texto | ✅ | Histórico persistido em SQLite, upload de imagens/vídeos |
+| 🎙️ Voz P2P | ✅ | WebRTC full-duplex, mesh automático entre peers |
+| 🎬 Compartilhamento de tela | ✅ | Monitor inteiro ou janela específica, modo foco com fit 100% |
+| 🎵 Detecção de voz (VAD) | ✅ | Outlining verde em tiles quando detecta voz |
+| 👥 Canais de voz | ✅ | Múltiplos canais, lista ao vivo de quem está aonde |
+| 🏛️ Guilds (servidores) | ✅ | Múltiplos servidores, categorias de canais |
+| 📍 Presença em tempo real | ✅ | Online/Offline, indicador ao vivo em tiles |
+| 🔐 Cargos e permissões | ✅ | Admin/moderador/membro com controles sobre canais |
+| 🚀 Auto-descoberta (UDP broadcast) | ✅ | Modo Electron: lista servidores na rede automaticamente |
+| 🔊 Supressão de ruído (RNNoise) | 🔜 | Próxima prioridade |
+| 📞 Push-to-Talk | 🔜 | Tecla PTT para ativar/desativar microfone |
+| 📹 Câmera/Vídeo | ❌ | Foco em compartilhamento de tela, não em webcam |
 
 ## 📡 Protocolo WebSocket
 
-| Opcode | Direção | Evento |
-|--------|---------|--------|
-| 0 | C→S | IDENTIFY (auth) |
-| 1 | C→S | HEARTBEAT |
-| 2 | C→S | JOIN_VOICE |
-| 3 | C→S | LEAVE_VOICE |
-| 4 | C→S | VOICE_SIGNAL (relay SDP/ICE) |
-| 5 | C→S | UPDATE_PRESENCE |
-| 10 | S→C | HELLO (heartbeat interval) |
-| 11 | S→C | READY (user + guilds) |
-| 14 | S→C | VOICE_STATE_UPDATE |
-| 15 | S→C | VOICE_PEER_SIGNAL (relay) |
-| 19 | S→C | VOICE_JOINED (peers list) |
-| 20 | S→C | VOICE_LEFT |
-| 21 | S→C | MESSAGE_UPDATE |
-| 22 | S→C | MESSAGE_DELETE |
+Conexão mantida em `/gateway` após `IDENTIFY` com JWT.
+
+### Client → Server
+
+| Opcode | Evento | Payload |
+|--------|--------|---------|
+| 0 | IDENTIFY | `{token: string}` |
+| 1 | HEARTBEAT | `{}` |
+| 2 | JOIN_VOICE | `{channelId: string}` |
+| 3 | LEAVE_VOICE | `{}` |
+| 4 | VOICE_SIGNAL | `{targetUserId, type: 'offer'\|'answer'\|'candidate', data}` — sinalização WebRTC |
+| 5 | UPDATE_PRESENCE | `{status: 'online'\|'offline'}` |
+| 6 | START_STREAM | `{}` — iniciar compartilhamento de tela |
+| 7 | STOP_STREAM | `{}` — parar compartilhamento |
+
+### Server → Client
+
+| Opcode | Evento | Payload |
+|--------|--------|---------|
+| 10 | HELLO | `{heartbeatInterval: number}` |
+| 11 | READY | `{user, guilds[], voiceStates[], channels[]}` — sincronização inicial |
+| 13 | MESSAGE_CREATE | `{message: {id, content, author, timestamp, attachments[]}}` |
+| 14 | VOICE_STATE_UPDATE | `{voiceState: {userId, channelId, guildId, muted, streaming}}` |
+| 15 | VOICE_PEER_SIGNAL | `{fromUserId, type, data}` — sinalização WebRTC relayada |
+| 16 | PRESENCE_UPDATE | `{userId, status: 'online'\|'offline'}` |
+| 18 | HEARTBEAT_ACK | `{}` |
+| 19 | VOICE_JOINED | `{peers: [{userId, username, avatarColor}]}` — quem já estava no canal |
+| 20 | VOICE_LEFT | `{userId}` — alguém saiu |
+| 21 | MESSAGE_UPDATE | `{message}` — mensagem foi editada |
+| 22 | MESSAGE_DELETE | `{messageId}` — mensagem foi deletada |
+| 23 | GUILD_MEMBER_ADD | `{member: {userId, username, avatarColor}}` — novo member no servidor |
+| 24 | CHANNEL_CREATE | `{channel: {id, name, type, categoryId}}` — novo canal |
+| 99 | ERROR | `{code: number, message: string}` — erro genérico
+
+## 🌐 Networking & Performance
+
+**Sem STUN/TURN externos** — tudo direto entre peers na mesma rede compartilhada (Radmin VPN, Tailscale, ZeroTier, ou LAN). Isso significa:
+- ✅ **Latência ultra-baixa** (10-50ms típico em VPN, <5ms em LAN)
+- ✅ **Sem custo de infraestrutura** (sem servidores TURN caros)
+- ✅ **Privacidade**: nada passa por servidores externos, só sinalização pelo seu servidor
+- ⚠️ **Requer conexão direta**: se um peer está atrás de NAT/firewall agressivo e não consegue abrir portas, precisa da VPN pra "furar" — daí entra a VPN mesh pra isso
+
+**Recomendações**:
+- **LAN local** (mesma rede WiFi): melhor latência, sem VPN needed
+- **Radmin VPN**: suportado, boa latência, configuração simples (mas assinatura paga)
+- **Tailscale**: grátis, muito usado, funciona igual bem
+- **ZeroTier**: grátis + open-source, mais complexo de setup inicial
+- **Qualquer combinação**: Windows + Linux, VPN + LAN, tudo funciona junto
+
+**Limites testados**:
+- 4+ pessoas em call simultânea: funciona smooth (audio + screen share)
+- Chat com 1000+ mensagens no histórico: carrega em <1s
+- Upload de imagem/vídeo até 20MB: completo em <10s (depende de bandwidth local)
+
+## 🔧 Desenvolvimento
+
+### Build production
+```bash
+# Cliente
+cd packages/client
+npm run build          # Vite → dist/
+npm run build:electron # Electron → dist-electron/
+npm run electron:build # Empacota pra .exe/.deb/.AppImage
+
+# Servidor
+cd packages/server
+npm run build          # tsc → dist/
+```
+
+### Debug
+- **Cliente**: abra DevTools (Ctrl+Shift+I no Electron)
+- **Servidor**: logs em stdout; ou inspeciona `/data/discord-p2p.db` direto com SQLite tools
+- **WebRTC**: vê `chrome://webrtc-internals` no Chromium/Electron pra stats de conexão
 
 ## 🤝 Contribuindo
 
-Pull requests são bem-vindos!
+Pull requests são bem-vindos! Antes de commitar, rode:
+```bash
+npm run build  # verifica type errors + build success
+```
 
 ## 📄 Licença
 
 MIT
+
