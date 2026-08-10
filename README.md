@@ -211,9 +211,10 @@ VITE_WS_URL=ws://<ip-do-host>:3002
 ## 🔒 Segurança
 
 - Acesso controlado por senha de servidor (registro) + JWT (tudo mais) — não por faixa de IP, então funciona igual em qualquer VPN ou LAN
-- Sem STUN/TURN externos — 100% direto entre peers na rede compartilhada
+- P2P direto entre peers na rede compartilhada; TURN relay embutido no servidor só entra como fallback quando dois peers não têm rota direta entre si (veja seção Networking)
 - Senhas com bcryptjs (salt rounds: 10)
 - JWT com expiração de 7 dias
+- ⚠️ O TURN relay usa a dependência `node-turn` (sem manutenção há anos, com CVEs DoS conhecidos em dependências de log/config que não são exercitadas pelo nosso uso) — aceitável para um servidor privado atrás de senha, mas não exponha esse servidor à internet pública sem rever isso
 
 ## 🎤 Features
 
@@ -249,6 +250,8 @@ Conexão mantida em `/gateway` após `IDENTIFY` com JWT.
 | 6 | START_STREAM | `{}` — iniciar compartilhamento de tela |
 | 7 | STOP_STREAM | `{}` — parar compartilhamento |
 
+Além do gateway, `GET /rtc-config` (REST, autenticado) devolve as credenciais do TURN relay embutido do servidor.
+
 ### Server → Client
 
 | Opcode | Evento | Payload |
@@ -270,18 +273,19 @@ Conexão mantida em `/gateway` após `IDENTIFY` com JWT.
 
 ## 🌐 Networking & Performance
 
-**Sem STUN/TURN externos** — tudo direto entre peers na mesma rede compartilhada (Radmin VPN, Tailscale, ZeroTier, ou LAN). Isso significa:
+**P2P direto por padrão** entre peers na mesma rede compartilhada (Radmin VPN, Tailscale, ZeroTier, ou LAN) — a mídia nunca passa pelo servidor nesse caso. Isso significa:
 - ✅ **Latência ultra-baixa** (10-50ms típico em VPN, <5ms em LAN)
-- ✅ **Sem custo de infraestrutura** (sem servidores TURN caros)
 - ✅ **Privacidade**: nada passa por servidores externos, só sinalização pelo seu servidor
-- ⚠️ **Requer conexão direta**: se um peer está atrás de NAT/firewall agressivo e não consegue abrir portas, precisa da VPN pra "furar" — daí entra a VPN mesh pra isso
+- ⚠️ **Requer rota direta**: dois peers em VPNs diferentes (ex: um no Tailscale, outro no Radmin) não têm caminho de rede um até o outro
+
+**TURN relay embutido (fallback automático)**: o servidor roda um relay TURN/STUN próprio (porta `3478` UDP/TCP + faixa `49152-49172` pros dados relayados, ambas configuráveis via `.env`). Quando o WebRTC detecta que dois peers não conseguem se conectar direto (exatamente o caso de VPNs diferentes), ele automaticamente troca pra rotear a mídia através do seu host, sem precisar fazer nada manual. Se o host estiver atrás de firewall, libere essas portas (UDP e TCP) pra esse fallback funcionar - sem isso, esses dois peers específicos simplesmente não conseguem se ouvir/ver, mas o resto do app continua normal.
 
 **Recomendações**:
 - **LAN local** (mesma rede WiFi): melhor latência, sem VPN needed
 - **Radmin VPN**: suportado, boa latência, configuração simples (mas assinatura paga)
 - **Tailscale**: grátis, muito usado, funciona igual bem
 - **ZeroTier**: grátis + open-source, mais complexo de setup inicial
-- **Qualquer combinação**: Windows + Linux, VPN + LAN, tudo funciona junto
+- **Qualquer combinação**: Windows + Linux, VPN + LAN, tudo funciona junto — e se dois amigos estiverem em redes diferentes sem rota comum, o TURN relay do host cobre isso automaticamente (com uma perninha a mais de latência, já que a mídia passa pelo host em vez de ir direto)
 
 **Limites testados**:
 - 4+ pessoas em call simultânea: funciona smooth (audio + screen share)

@@ -10,6 +10,7 @@ export interface VoiceState { userId: number; username: string; channelId: strin
 export interface Role { id: string; guildId: string; name: string; color: string; hoist: boolean; permissions: number; position: number; }
 export interface Member { userId: number; username: string; avatarColor: string; status: string; roles: string[]; }
 export interface UploadedAttachment { url: string; filename: string; mimetype: string; size: number; }
+export interface RtcConfig { turnPort: number; username: string; credential: string; }
 
 /** Must match packages/server/src/config.ts maxFileSize. */
 export const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
@@ -136,6 +137,13 @@ export const roles = {
   },
   assignToMember: async (guildId: string, userId: number, roleIds: string[]) => {
     const res = await apiClient.put(`/guilds/${guildId}/members/${userId}/roles`, { roleIds });
+    return res.data;
+  }
+};
+
+export const rtc = {
+  getConfig: async () => {
+    const res = await apiClient.get<RtcConfig>('/rtc-config');
     return res.data;
   }
 };
