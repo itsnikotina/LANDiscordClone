@@ -8,7 +8,6 @@ import { initDb, closeDb } from './database/db';
 import { initWebSocketServer } from './gateway/socket';
 import { toCamelCase } from './utils/caseTransform';
 import { startDiscoveryBeacon } from './discovery';
-import { startTurnServer } from './turn';
 
 // Route imports
 import authRoutes from './auth/routes';
@@ -16,7 +15,6 @@ import guildsRoutes from './api/guilds';
 import channelsRoutes from './api/channels';
 import messagesRoutes from './api/messages';
 import rolesRoutes from './api/roles';
-import rtcRoutes from './api/rtc';
 
 // Wrap startup in async IIFE
 (async () => {
@@ -53,7 +51,6 @@ import rtcRoutes from './api/rtc';
   app.use('/channels', messagesRoutes); // /channels/:channelId/messages is mounted here
   app.use('/guilds/:guildId/roles', rolesRoutes);
   app.use('/guilds/:guildId/members', rolesRoutes); // member roles also exported from roles route
-  app.use('/rtc-config', rtcRoutes);
 
   // Global error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -79,9 +76,6 @@ import rtcRoutes from './api/rtc';
 
   // Broadcast presence so clients can auto-detect this server on the LAN/VPN.
   startDiscoveryBeacon();
-
-  // Embedded TURN relay - fallback for peers on different VPNs that can't reach each other directly.
-  startTurnServer();
 
   // Graceful shutdown
   process.on('SIGINT', () => {

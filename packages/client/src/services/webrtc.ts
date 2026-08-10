@@ -1,6 +1,4 @@
 import { gateway, GatewayOpcode } from './gateway';
-import { rtc } from './api';
-import { getEffectiveServerConfig } from './serverConfig';
 
 export interface PeerInfo {
   userId: number;
@@ -27,7 +25,6 @@ class WebRTCManager {
   private selfSpeakingCallbacks: Array<(speaking: boolean) => void> = [];
   private remoteStreamCallbacks: Array<(userId: number, stream: MediaStream | null) => void> = [];
   private outputDeviceId: string | null = null;
-  private iceServersReady = false;
   
   private readonly config: RTCConfiguration = {
     iceServers: [],
@@ -103,8 +100,6 @@ class WebRTCManager {
   }
 
   async connectToPeer(peer: { userId: number; username: string; radminIp: string }, isInitiator: boolean): Promise<void> {
-    await this.ensureIceServers();
-
     if (this.peers.has(peer.userId)) {
       this.disconnectPeer(peer.userId);
     }
@@ -286,28 +281,6 @@ class WebRTCManager {
       console.error(`[webrtc] ICE restart failed for peer ${userId}`, e);
     } finally {
       this.restartingPeers.delete(userId);
-    }
-  }
-
-  /**
-   * Fetches the server's TURN relay once and adds it as an ICE fallback candidate source.
-   * Direct P2P (host candidates) is still tried first and preferred when it works - this
-   * only kicks in when peers can't reach each other's networks directly (e.g. different VPNs).
-   */
-  private async ensureIceServers(): Promise<void> {
-    if (this.iceServersReady) return;
-    this.iceServersReady = true;
-    try {
-      const { turnPort, username, credential } = await rtc.getConfig();
-      const host = new URL(getEffectiveServerConfig()!.apiUrl).hostname;
-      this.config.iceServers = [{
-        urls: [`turn:${host}:${turnPort}?transport=udp`, `turn:${host}:${turnPort}?transport=tcp`],
-        username,
-        credential
-      }];
-      console.log('[webrtc] TURN relay configured as ICE fallback:', host);
-    } catch (e) {
-      console.warn('[webrtc] Could not fetch TURN relay config, staying P2P-only', e);
     }
   }
 

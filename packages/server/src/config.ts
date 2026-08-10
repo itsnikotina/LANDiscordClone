@@ -49,20 +49,5 @@ export const config = {
    * Defaults to 20MB.
    */
   maxFileSize: 20 * 1024 * 1024,
-
-  /**
-   * Embedded TURN relay (fallback for peers whose networks can't reach each other
-   * directly, e.g. one on Tailscale + one on Radmin). Small relay port range keeps
-   * the Windows Firewall rule simple (one UDP/TCP range to allow, not the full
-   * 49152-65535 dynamic range).
-   */
-  turnPort: Number(process.env.TURN_PORT) || 3478,
-  turnMinPort: Number(process.env.TURN_MIN_PORT) || 49152,
-  turnMaxPort: Number(process.env.TURN_MAX_PORT) || 49172,
-  turnUsername: 'discord-p2p',
-  // Reuses the server join password - anyone who can register already knows it, so
-  // handing it back via the authenticated /rtc-config endpoint reveals nothing new.
-  turnPassword: process.env.SERVER_PASSWORD || 'amigos123',
 };
-
 
