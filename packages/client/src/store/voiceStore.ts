@@ -31,7 +31,7 @@ interface VoiceStore {
   leaveChannel: () => void;
   toggleMute: () => void;
   toggleDeafen: () => void;
-  toggleStream: () => Promise<void>;
+  toggleStream: (sourceId?: string) => Promise<void>;
   setInputDevice: (deviceId: string) => Promise<void>;
   setOutputDevice: (deviceId: string) => Promise<void>;
   addPeer: (peer: VoicePeer) => void;
@@ -80,6 +80,10 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       webrtcManager.onSelfSpeakingChange((speaking) => {
         set({ isSelfSpeaking: speaking });
       });
+
+      webrtcManager.onRemoteStream((userId, stream) => {
+        get().updatePeer(userId, { stream: stream ?? undefined });
+      });
       
     } catch (err) {
       console.error('Failed to join voice channel', err);
@@ -124,14 +128,14 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     }
   },
   
-  toggleStream: async () => {
+  toggleStream: async (sourceId?: string) => {
     if (get().isStreaming) {
       webrtcManager.stopScreenShare();
       set({ isStreaming: false, screenStream: null });
       gateway.send(GatewayOpcode.STOP_STREAM, {});
     } else {
       try {
-        const stream = await webrtcManager.startScreenShare();
+        const stream = await webrtcManager.startScreenShare(sourceId);
         set({ isStreaming: true, screenStream: stream });
         gateway.send(GatewayOpcode.START_STREAM, {});
       } catch (err) {

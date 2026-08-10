@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useVoiceStore } from '../../store/voiceStore';
+import ScreenSourcePicker from '../screenshare/ScreenSourcePicker';
 
 const pillButtonStyle = (active: boolean, danger?: boolean): React.CSSProperties => ({
   width: '44px', height: '44px', borderRadius: '50%', border: 'none', cursor: 'pointer',
@@ -12,8 +13,20 @@ const pillButtonStyle = (active: boolean, danger?: boolean): React.CSSProperties
 
 const VoiceControls: React.FC = () => {
   const { isMuted, isStreaming, channelId, toggleMute, toggleStream, leaveChannel } = useVoiceStore();
+  const [showPicker, setShowPicker] = useState(false);
 
   if (!channelId) return null;
+
+  const handleStreamClick = () => {
+    if (isStreaming) {
+      toggleStream();
+    } else if (typeof window.electronAPI?.getScreenSources === 'function') {
+      setShowPicker(true);
+    } else {
+      // Browser fallback: the native getDisplayMedia picker handles source selection.
+      toggleStream();
+    }
+  };
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
@@ -26,7 +39,7 @@ const VoiceControls: React.FC = () => {
           <Icon icon={isMuted ? 'mdi:microphone-off' : 'solar:microphone-bold'} width={20} />
         </button>
 
-        <button onClick={toggleStream} title="Compartilhar Tela" style={{ ...pillButtonStyle(false), backgroundColor: isStreaming ? 'var(--color-success)' : '#4f545c' }}>
+        <button onClick={handleStreamClick} title={isStreaming ? 'Parar Compartilhamento' : 'Compartilhar Tela'} style={{ ...pillButtonStyle(false), backgroundColor: isStreaming ? 'var(--color-success)' : '#4f545c' }}>
           <Icon icon="solar:monitor-bold" width={20} />
         </button>
 
@@ -34,6 +47,15 @@ const VoiceControls: React.FC = () => {
           <Icon icon="solar:end-call-bold" width={22} />
         </button>
       </div>
+
+      <ScreenSourcePicker
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        onSelect={(sourceId) => {
+          setShowPicker(false);
+          toggleStream(sourceId);
+        }}
+      />
     </div>
   );
 };

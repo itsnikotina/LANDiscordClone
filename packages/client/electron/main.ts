@@ -113,12 +113,35 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     ipcMain.handle('get-network-ips', () => getNetworkIps());
     ipcMain.handle('get-discovered-servers', () => getDiscoveredServers());
+
+    // Renderer pre-selects a capture source (window/monitor) before calling getDisplayMedia.
+    let pendingScreenSourceId: string | null = null;
+    ipcMain.handle('get-screen-sources', async () => {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 320, height: 180 },
+      });
+      return sources.map((s) => ({
+        id: s.id,
+        name: s.name,
+        type: s.id.startsWith('screen:') ? 'screen' : 'window',
+        thumbnail: s.thumbnail.toDataURL(),
+      }));
+    });
+    ipcMain.handle('select-screen-source', (_event, sourceId: string) => {
+      pendingScreenSourceId = sourceId;
+    });
+
     startDiscoveryListener();
 
     // Electron doesn't show Chrome's screen-picker UI by default - getDisplayMedia() hangs/rejects without this.
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-      desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
-        callback({ video: sources[0], audio: 'loopback' });
+      desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
+        const chosen = pendingScreenSourceId
+          ? sources.find((s) => s.id === pendingScreenSourceId)
+          : undefined;
+        pendingScreenSourceId = null;
+        callback({ video: chosen ?? sources.find((s) => s.id.startsWith('screen:')) ?? sources[0], audio: 'loopback' });
       });
     });
 

@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useVoiceStore } from '../../store/voiceStore';
 import { useAuthStore } from '../../store/authStore';
 import Avatar from '../ui/Avatar';
 import VoiceControls from './VoiceControls';
+import ScreenShareView from '../screenshare/ScreenShareView';
 
 interface Channel {
   id: string;
@@ -17,6 +18,8 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
   const { peersArray, channelId, joinChannel, joinError, isMuted, isSelfSpeaking, screenStream } = useVoiceStore();
   const { user } = useAuthStore();
   const isInVoice = channelId === channel.id;
+  // Which participant's screen is being watched full-size ('self' = own preview).
+  const [focusedUserId, setFocusedUserId] = useState<number | 'self' | null>(null);
 
   // Join automatically on entering the channel's view instead of requiring an extra click.
   useEffect(() => {
@@ -59,6 +62,31 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
   const gridCols = Math.ceil(Math.sqrt(totalParticipants));
   const gridRows = Math.ceil(totalParticipants / gridCols);
 
+  // Resolve the focused stream; falls back to grid when it stopped/user left.
+  const focusedStream = focusedUserId === 'self'
+    ? screenStream
+    : focusedUserId !== null
+      ? peersArray.find(p => p.userId === focusedUserId)?.stream ?? null
+      : null;
+  const focusedName = focusedUserId === 'self'
+    ? user?.username ?? ''
+    : peersArray.find(p => p.userId === focusedUserId)?.username ?? '';
+
+  if (focusedUserId !== null && focusedStream) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ flex: 1, minHeight: 0, padding: '16px' }}>
+          <ScreenShareView
+            stream={focusedStream}
+            username={focusedName}
+            onClose={() => setFocusedUserId(null)}
+          />
+        </div>
+        <VoiceControls />
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{
@@ -71,7 +99,10 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
         overflow: 'hidden'
       }}>
         {user && (
-          <div style={{
+          <div
+            onClick={() => { if (screenStream) setFocusedUserId('self'); }}
+            title={screenStream ? 'Clique para focar' : undefined}
+            style={{
             background: tileBackground(user.avatarColor),
             borderRadius: '8px',
             display: 'flex',
@@ -80,6 +111,7 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
             justifyContent: 'center',
             position: 'relative',
             overflow: 'hidden',
+            cursor: screenStream ? 'pointer' : 'default',
             boxShadow: isSelfSpeaking ? 'inset 0 0 0 3px var(--color-speaking)' : 'none'
           }}>
             {screenStream ? (
@@ -105,7 +137,11 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
         )}
 
         {peersArray.map(peer => (
-            <div key={peer.userId} style={{
+            <div
+              key={peer.userId}
+              onClick={() => { if (peer.stream) setFocusedUserId(peer.userId); }}
+              title={peer.stream ? 'Clique para focar' : undefined}
+              style={{
               background: tileBackground(peer.avatarColor),
               borderRadius: '8px',
               display: 'flex',
@@ -114,6 +150,7 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
               justifyContent: 'center',
               position: 'relative',
               overflow: 'hidden',
+              cursor: peer.stream ? 'pointer' : 'default',
               boxShadow: peer.isSpeaking ? 'inset 0 0 0 3px var(--color-speaking)' : 'none'
             }}>
               {peer.stream ? (

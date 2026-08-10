@@ -7,6 +7,7 @@ export interface PeerInfo {
   connection: RTCPeerConnection;
   audioEl: HTMLAudioElement;
   stream?: MediaStream;
+  screenStream?: MediaStream;
   isSpeaking: boolean;
   isInitiator: boolean;
 }
@@ -22,6 +23,7 @@ class WebRTCManager {
   private audioContext: AudioContext | null = null;
   private speakingCallbacks: Array<(userId: number, speaking: boolean) => void> = [];
   private selfSpeakingCallbacks: Array<(speaking: boolean) => void> = [];
+  private remoteStreamCallbacks: Array<(userId: number, stream: MediaStream | null) => void> = [];
   private outputDeviceId: string | null = null;
   
   private readonly config: RTCConfiguration = {
@@ -138,13 +140,25 @@ class WebRTCManager {
       event.track.onmute = () => console.warn(`[webrtc] peer ${peer.userId} ${event.track.kind} track went SILENT (no packets arriving)`);
       event.track.onunmute = () => {
         console.log(`[webrtc] peer ${peer.userId} ${event.track.kind} track receiving packets`);
-        this.ensurePlaying(peer.userId);
+        if (event.track.kind === 'audio') this.ensurePlaying(peer.userId);
       };
       const stream = event.streams[0];
+      if (!stream) return;
+      const p = this.peers.get(peer.userId);
+
+      if (event.track.kind === 'video') {
+        // Screen share stream (its audio, if any, plays through the <video> element in the UI).
+        if (p) p.screenStream = stream;
+        this.remoteStreamCallbacks.forEach(cb => cb(peer.userId, stream));
+        return;
+      }
+
+      // Audio belonging to the screen stream is not the mic - don't let it evict the voice stream.
+      if (audioEl.srcObject && audioEl.srcObject !== stream && stream.getVideoTracks().length > 0) return;
+
       // Always (re)attach: after a rejoin/renegotiation the element may hold a dead stream.
-      if (stream && audioEl.srcObject !== stream) {
+      if (audioEl.srcObject !== stream) {
         audioEl.srcObject = stream;
-        const p = this.peers.get(peer.userId);
         if (p) {
           p.stream = stream;
           this.monitorAudioLevel(peer.userId, stream);
@@ -218,6 +232,11 @@ class WebRTCManager {
         await peer.connection.addIceCandidate(new RTCIceCandidate(data));
       } catch (e) {
         console.error('Error adding ICE candidate', e);
+      }
+    } else if (type === 'stream-stop') {
+      if (peer) {
+        peer.screenStream = undefined;
+        this.remoteStreamCallbacks.forEach(cb => cb(fromUserId, null));
       }
     }
   }
@@ -320,9 +339,14 @@ class WebRTCManager {
     }
   }
 
-  async startScreenShare(): Promise<MediaStream> {
+  async startScreenShare(sourceId?: string): Promise<MediaStream> {
     if (this.screenStream) {
       this.stopScreenShare();
+    }
+
+    // Tells Electron's display-media handler which window/monitor to capture.
+    if (sourceId && window.electronAPI?.selectScreenSource) {
+      await window.electronAPI.selectScreenSource(sourceId);
     }
     
     this.screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -374,6 +398,14 @@ class WebRTCManager {
     this.speakingCallbacks.push(cb);
     return () => {
       this.speakingCallbacks = this.speakingCallbacks.filter(c => c !== cb);
+    };
+  }
+
+  /** Remote screen-share video streams starting (stream) / stopping (null) per peer. */
+  onRemoteStream(cb: (userId: number, stream: MediaStream | null) => void): () => void {
+    this.remoteStreamCallbacks.push(cb);
+    return () => {
+      this.remoteStreamCallbacks = this.remoteStreamCallbacks.filter(c => c !== cb);
     };
   }
 

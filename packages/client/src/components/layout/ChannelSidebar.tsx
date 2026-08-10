@@ -10,6 +10,7 @@ import Badge from '../ui/Badge';
 import Modal from '../ui/Modal';
 import AudioSettingsModal from '../ui/AudioSettingsModal';
 import SpeakingIndicator from '../voice/SpeakingIndicator';
+import ScreenSourcePicker from '../screenshare/ScreenSourcePicker';
 
 const ChannelSidebar: React.FC = () => {
   const { activeGuildId, guilds, activeChannelId, voiceStates, getMember, getChannel } = useGuildStore();
@@ -25,6 +26,7 @@ const ChannelSidebar: React.FC = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [showScreenPicker, setShowScreenPicker] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   const guild = guilds.find(g => g.id === activeGuildId);
@@ -179,10 +181,25 @@ const ChannelSidebar: React.FC = () => {
               <button onClick={toggleDeafen} style={{ flex: 1, background: 'var(--color-bg-tertiary)', border: 'none', borderRadius: '4px', padding: '6px', color: isDeafened ? 'var(--color-danger)' : 'var(--color-text-normal)', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}>
                 <Icon icon={isDeafened ? 'mdi:headset-off' : 'solar:headphones-round-sound-bold'} width={18} />
               </button>
-              <button onClick={toggleStream} style={{ flex: 1, background: isStreaming ? 'var(--color-success)' : 'var(--color-bg-tertiary)', border: 'none', borderRadius: '4px', padding: '6px', color: 'var(--color-text-normal)', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={() => {
+                  if (isStreaming) toggleStream();
+                  else if (typeof window.electronAPI?.getScreenSources === 'function') setShowScreenPicker(true);
+                  else toggleStream();
+                }}
+                style={{ flex: 1, background: isStreaming ? 'var(--color-success)' : 'var(--color-bg-tertiary)', border: 'none', borderRadius: '4px', padding: '6px', color: 'var(--color-text-normal)', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}
+              >
                 <Icon icon="solar:monitor-bold" width={18} />
               </button>
             </div>
+            <ScreenSourcePicker
+              isOpen={showScreenPicker}
+              onClose={() => setShowScreenPicker(false)}
+              onSelect={(sourceId) => {
+                setShowScreenPicker(false);
+                toggleStream(sourceId);
+              }}
+            />
           </div>
         );
       })()}
