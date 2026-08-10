@@ -5,9 +5,10 @@ interface ScreenShareViewProps {
   stream: MediaStream;
   username: string;
   onClose?: () => void;
+  muted?: boolean;
 }
 
-const ScreenShareView: React.FC<ScreenShareViewProps> = ({ stream, username, onClose }) => {
+const ScreenShareView: React.FC<ScreenShareViewProps> = ({ stream, username, onClose, muted }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -32,6 +33,7 @@ const ScreenShareView: React.FC<ScreenShareViewProps> = ({ stream, username, onC
         ref={videoRef}
         autoPlay
         playsInline
+        muted={muted}
         style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
       />
       

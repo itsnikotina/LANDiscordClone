@@ -79,6 +79,7 @@ const VoiceChannel: React.FC<{ channel: Channel; guildId: string }> = ({ channel
           <ScreenShareView
             stream={focusedStream}
             username={focusedName}
+            muted={focusedUserId === 'self'}
             onClose={() => setFocusedUserId(null)}
           />
         </div>
